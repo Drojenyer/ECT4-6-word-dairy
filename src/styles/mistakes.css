@@ -1,0 +1,431 @@
+.mistakes-container {
+    max-width: 1000px;
+    margin: 0 auto;
+}
+
+.mistakes-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    gap: 16px;
+}
+
+.mistakes-header h2 {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.mistakes-heading {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.mistakes-subtitle {
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.mistakes-header-actions {
+    display: flex;
+    gap: 10px;
+    flex-shrink: 0;
+}
+
+/* 排列方式选择 */
+.mistakes-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    padding: 14px 18px;
+    margin-bottom: 20px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow);
+}
+
+.toolbar-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    flex-shrink: 0;
+}
+
+.sort-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.sort-chip {
+    padding: 6px 14px;
+    background: var(--bg-hover);
+    border: 1px solid transparent;
+    border-radius: 999px;
+    font-family: inherit;
+    font-size: 13px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.sort-chip:hover {
+    border-color: var(--primary);
+    color: var(--primary-text);
+}
+
+.sort-chip.active {
+    background: var(--primary-light);
+    border-color: var(--primary);
+    color: var(--primary-text);
+    font-weight: 600;
+}
+
+/* 显示模式切换：条状详细 / 网格简略 */
+.layout-switch {
+    display: flex;
+    gap: 4px;
+    margin-left: auto;
+    padding: 3px;
+    background: var(--bg-hover);
+    border-radius: 999px;
+}
+
+.layout-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 14px;
+    background: transparent;
+    border: none;
+    border-radius: 999px;
+    font-family: inherit;
+    font-size: 13px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.layout-btn:hover {
+    color: var(--primary-text);
+}
+
+.layout-btn.active {
+    background: var(--bg-card);
+    color: var(--primary-text);
+    font-weight: 600;
+    box-shadow: var(--shadow);
+}
+
+.layout-icon {
+    font-size: 14px;
+    line-height: 1;
+}
+
+.mistakes-list {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+/* 网格简略：一屏扫视更多单词 */
+.mistakes-list.layout-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 14px;
+}
+
+.mistakes-list.layout-grid .mistake-item {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 16px 18px;
+    border-left: 1px solid var(--border-light);
+    border-top: 3px solid var(--danger);
+}
+
+.mistakes-list.layout-grid .mistake-item:hover {
+    transform: translateY(-2px);
+}
+
+.mistake-grid-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.mistake-grid-head .mistake-word {
+    font-size: 17px;
+}
+
+.mistake-grid-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.mistake-badge.badge-count {
+    background: var(--danger-light);
+    color: var(--danger-text);
+}
+
+.mistake-badge.badge-freq {
+    background: var(--warning-light);
+    color: var(--warning-text);
+}
+
+.mistakes-list.layout-grid .mistake-translation {
+    font-size: 14px;
+    margin-bottom: 0;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.mistake-grid-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: auto;
+}
+
+.mistake-item {
+    background: var(--bg-card);
+    border-radius: var(--radius-lg);
+    padding: 20px;
+    border: 1px solid var(--border-light);
+    border-left: 3px solid var(--danger);
+    box-shadow: var(--shadow);
+    transition: transform 0.24s var(--ease-out), box-shadow 0.24s var(--ease-out);
+}
+
+.mistake-item:hover {
+    box-shadow: var(--shadow-lg);
+    transform: translateX(3px);
+}
+
+.mistake-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.mistake-word {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.mistake-level {
+    padding: 4px 12px;
+    background: var(--danger-light);
+    color: var(--danger-text);
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.mistake-word-line {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+/* 艾宾浩斯复习状态 */
+.mistake-badge {
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.mistake-badge.badge-due {
+    background: var(--primary-light);
+    color: var(--primary-text);
+}
+
+.mistake-badge.badge-wait {
+    background: var(--bg-active);
+    color: var(--text-secondary);
+}
+
+.mistake-badge.badge-done {
+    background: var(--success-light);
+    color: var(--success-text);
+}
+
+.mistake-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-top: 12px;
+    font-size: 12px;
+    color: var(--text-tertiary);
+}
+
+.mistake-translation {
+    font-size: 16px;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+    line-height: 1.6;
+}
+
+.mistake-phrases {
+    background: var(--bg-hover);
+    padding: 12px;
+    border-radius: var(--radius-sm);
+}
+
+.mistake-phrase-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border-light);
+    font-size: 14px;
+}
+
+.mistake-phrase-item:last-child {
+    border-bottom: none;
+}
+
+.mistake-phrase-en {
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+.mistake-phrase-zh {
+    color: var(--text-secondary);
+}
+
+.mistake-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.mistake-empty {
+    text-align: center;
+    padding: 80px 20px;
+    animation: fadeIn 0.5s ease;
+}
+
+.empty-icon {
+    font-size: 64px;
+    margin-bottom: 16px;
+    opacity: 0.5;
+}
+
+.mistakes-empty p {
+    font-size: 18px;
+    color: var(--text-secondary);
+}
+
+/* 卡片密度：只调整留白与间距，不改字号，避免与移动端布局冲突 */
+body[data-density="compact"] .mistakes-header {
+    margin-bottom: 14px;
+}
+
+body[data-density="compact"] .mistakes-toolbar {
+    padding: 10px 14px;
+    margin-bottom: 14px;
+}
+
+body[data-density="compact"] .mistakes-list {
+    gap: 10px;
+}
+
+body[data-density="compact"] .mistake-item {
+    padding: 14px 16px;
+}
+
+body[data-density="compact"] .mistakes-list.layout-grid {
+    gap: 10px;
+}
+
+body[data-density="compact"] .mistakes-list.layout-grid .mistake-item {
+    padding: 12px 14px;
+}
+
+body[data-density="compact"] .mistake-phrases {
+    padding: 10px;
+}
+
+body[data-density="comfortable"] .mistakes-header {
+    margin-bottom: 28px;
+}
+
+body[data-density="comfortable"] .mistakes-toolbar {
+    padding: 18px 22px;
+    margin-bottom: 26px;
+}
+
+body[data-density="comfortable"] .mistakes-list {
+    gap: 20px;
+}
+
+body[data-density="comfortable"] .mistake-item {
+    padding: 28px;
+}
+
+body[data-density="comfortable"] .mistakes-list.layout-grid {
+    gap: 22px;
+}
+
+body[data-density="comfortable"] .mistakes-list.layout-grid .mistake-item {
+    padding: 22px 24px;
+}
+
+body[data-density="comfortable"] .mistake-phrases {
+    padding: 16px;
+}
+
+/* 响应式 */
+@media (max-width: 768px) {
+    .mistakes-header {
+        flex-direction: column;
+        gap: 16px;
+        align-items: stretch;
+    }
+
+    .mistakes-header-actions {
+        flex-direction: column;
+    }
+
+    .mistakes-header-actions .btn {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .mistakes-toolbar {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .mistake-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+
+    .mistake-word {
+        font-size: 18px;
+    }
+
+    .mistake-actions {
+        justify-content: stretch;
+    }
+
+    .mistake-actions .btn {
+        flex: 1;
+        justify-content: center;
+    }
+}

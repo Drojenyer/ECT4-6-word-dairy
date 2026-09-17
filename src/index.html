@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>英语四六级词汇学习平台</title>
+    <link rel="stylesheet" href="styles/main.css">
+    <link rel="stylesheet" href="styles/home.css">
+    <link rel="stylesheet" href="styles/learn.css">
+    <link rel="stylesheet" href="styles/stats.css">
+    <link rel="stylesheet" href="styles/mistakes.css">
+    <link rel="stylesheet" href="styles/settings.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- 侧边栏 -->
+        <nav class="sidebar">
+            <div class="sidebar-header">
+                <h1>📚 四六级词汇</h1>
+                <div class="streak-badge">
+                    <span class="streak-icon">🔥</span>
+                    <span class="streak-count" id="streak-count">0</span>
+                    <span class="streak-text">天</span>
+                </div>
+            </div>
+
+            <ul class="nav-menu">
+                <li class="nav-item active" data-page="home">
+                    <span class="nav-icon">🏠</span>
+                    <span>打卡首页</span>
+                </li>
+                <li class="nav-item" data-page="learn">
+                    <span class="nav-icon">📖</span>
+                    <span>开始学习</span>
+                </li>
+                <li class="nav-item" data-page="stats">
+                    <span class="nav-icon">📊</span>
+                    <span>学习统计</span>
+                </li>
+                <li class="nav-item" data-page="mistakes">
+                    <span class="nav-icon">📝</span>
+                    <span>错题本</span>
+                </li>
+                <li class="nav-item" data-page="settings">
+                    <span class="nav-icon">⚙️</span>
+                    <span>设置</span>
+                </li>
+            </ul>
+
+            <div class="sidebar-footer">
+                <div class="app-info">
+                    <span>v2.0</span>
+                    <span>Electron 版</span>
+                </div>
+            </div>
+        </nav>
+
+        <!-- 主内容区 -->
+        <main class="main-content">
+            <!-- 首页 -->
+            <div id="page-home" class="page active">
+                <div class="home-container">
+                    <div class="welcome-section">
+                        <h2>欢迎回来！</h2>
+                        <p>今天也要坚持学习哦 💪</p>
+                    </div>
+
+                    <div class="checkin-status">
+                        <div class="status-card" id="checkin-card">
+                            <div class="status-icon" id="checkin-icon">📅</div>
+                            <div class="status-content">
+                                <h3 id="checkin-title">今日未打卡</h3>
+                                <p id="checkin-text">点击下方按钮开始今日学习</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="continue-section hidden" id="continue-section">
+                        <div class="continue-card">
+                            <div class="continue-info">
+                                <div class="continue-title">
+                                    <span class="continue-dot"></span>
+                                    今日学习进行中
+                                </div>
+                                <div class="continue-meta">
+                                    <span id="continue-count">0 / 0</span>
+                                    <span class="continue-mode" id="continue-mode"></span>
+                                </div>
+                                <div class="continue-bar">
+                                    <div class="continue-bar-fill" id="continue-bar-fill"></div>
+                                </div>
+                            </div>
+                            <button class="btn btn-primary" id="continue-btn">继续学习</button>
+                        </div>
+                    </div>
+
+                    <div class="review-section hidden" id="review-section">
+                        <div class="review-card">
+                            <div class="review-info">
+                                <div class="review-title">
+                                    <span class="review-icon">🔁</span>
+                                    艾宾浩斯复习提醒
+                                </div>
+                                <div class="review-text" id="review-text">今天有 0 个错词到了复习时间</div>
+                            </div>
+                            <button class="btn btn-primary" id="review-btn">开始复习</button>
+                        </div>
+                    </div>
+
+                    <div class="quick-start">
+                        <h3>快速开始</h3>
+                        <div class="quick-actions">
+                            <button class="quick-btn" data-mode="word_to_translation">
+                                <span class="btn-icon">🎯</span>
+                                <span class="btn-text">看词选义</span>
+                                <span class="btn-desc">从四个选项中选择正确的中文释义</span>
+                            </button>
+                            <button class="quick-btn" data-mode="translation_to_word">
+                                <span class="btn-icon">🔤</span>
+                                <span class="btn-text">看义选词</span>
+                                <span class="btn-desc">根据中文释义选择正确的英文单词</span>
+                            </button>
+                            <button class="quick-btn" data-mode="flashcard">
+                                <span class="btn-icon">🃏</span>
+                                <span class="btn-text">词卡浏览</span>
+                                <span class="btn-desc">翻卡式学习，自主标记认识/不认识</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 学习页面 -->
+            <div id="page-learn" class="page">
+                <div class="learn-container">
+                    <div class="learn-header">
+                        <div class="progress-info">
+                            <span class="progress-text" id="progress-text">1/20</span>
+                            <div class="progress-bar">
+                                <div class="progress-fill" id="progress-fill"></div>
+                            </div>
+                        </div>
+                        <div class="mode-badge" id="mode-badge">看词选义</div>
+                    </div>
+
+                    <div class="learn-area" id="learn-area">
+                        <!-- 动态内容 -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- 统计页面 -->
+            <div id="page-stats" class="page">
+                <div class="stats-container">
+                    <h2>学习统计</h2>
+
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-icon">🔥</div>
+                            <div class="stat-content">
+                                <div class="stat-value" id="stat-streak">0</div>
+                                <div class="stat-label">连续打卡天数</div>
+                            </div>
+                        </div>
+
+                        <div class="stat-card">
+                            <div class="stat-icon">📅</div>
+                            <div class="stat-content">
+                                <div class="stat-value" id="stat-total">0</div>
+                                <div class="stat-label">累计打卡天数</div>
+                            </div>
+                        </div>
+
+                        <div class="stat-card">
+                            <div class="stat-icon">📊</div>
+                            <div class="stat-content">
+                                <div class="stat-value" id="stat-quizzes">0</div>
+                                <div class="stat-label">总测验次数</div>
+                            </div>
+                        </div>
+
+                        <div class="stat-card">
+                            <div class="stat-icon">✅</div>
+                            <div class="stat-content">
+                                <div class="stat-value" id="stat-correct">0</div>
+                                <div class="stat-label">正确答题数</div>
+                            </div>
+                        </div>
+
+                        <div class="stat-card">
+                            <div class="stat-icon">❌</div>
+                            <div class="stat-content">
+                                <div class="stat-value" id="stat-wrong">0</div>
+                                <div class="stat-label">错误答题数</div>
+                            </div>
+                        </div>
+
+                        <div class="stat-card">
+                            <div class="stat-icon">💯</div>
+                            <div class="stat-content">
+                                <div class="stat-value" id="stat-accuracy">0%</div>
+                                <div class="stat-label">正确率</div>
+                            </div>
+                        </div>
+
+                        <div class="stat-card">
+                            <div class="stat-icon">✨</div>
+                            <div class="stat-content">
+                                <div class="stat-value" id="stat-mastered">0</div>
+                                <div class="stat-label">已掌握词汇</div>
+                            </div>
+                        </div>
+
+                        <div class="stat-card">
+                            <div class="stat-icon">📝</div>
+                            <div class="stat-content">
+                                <div class="stat-value" id="stat-mistakes">0</div>
+                                <div class="stat-label">错题数量</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 错题本页面 -->
+            <div id="page-mistakes" class="page">
+                <div class="mistakes-container">
+                    <div class="mistakes-header">
+                        <div class="mistakes-heading">
+                            <h2>错题本</h2>
+                            <p class="mistakes-subtitle" id="mistakes-subtitle">共 0 个错词</p>
+                        </div>
+                        <div class="mistakes-header-actions">
+                            <button class="btn btn-primary" id="start-wrong-quiz">开始错词测试</button>
+                            <button class="btn btn-danger" id="clear-mistakes">清空错题本</button>
+                        </div>
+                    </div>
+
+                    <div class="mistakes-toolbar">
+                        <span class="toolbar-label">排列方式</span>
+                        <div class="sort-chips" id="mistake-sorts">
+                            <button class="sort-chip active" data-sort="recent">最近加入</button>
+                            <button class="sort-chip" data-sort="oldest">最早加入</button>
+                            <button class="sort-chip" data-sort="alpha">字母 A-Z</button>
+                            <button class="sort-chip" data-sort="level">按级别</button>
+                            <button class="sort-chip" data-sort="wrong">错误最多</button>
+                            <button class="sort-chip" data-sort="review">优先复习</button>
+                        </div>
+                        <div class="layout-switch" id="mistake-layouts">
+                            <button class="layout-btn active" data-layout="detail" title="条状详细">
+                                <span class="layout-icon">☰</span>
+                                <span>详细</span>
+                            </button>
+                            <button class="layout-btn" data-layout="grid" title="网格简略">
+                                <span class="layout-icon">▦</span>
+                                <span>网格</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="mistakes-list" id="mistakes-list">
+                        <!-- 动态生成 -->
+                    </div>
+
+                    <div class="mistakes-empty" id="mistakes-empty">
+                        <div class="empty-icon">📝</div>
+                        <p>错题本为空，继续加油！</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 设置页面 -->
+            <div id="page-settings" class="page">
+                <div class="settings-container">
+                    <h2>设置</h2>
+
+                    <div class="settings-section">
+                        <h3>外观设置</h3>
+                        <div class="setting-item setting-item-block">
+                            <div class="setting-label"><span>预设样式</span></div>
+                            <div class="theme-presets" id="theme-presets"></div>
+                        </div>
+                        <div class="setting-item setting-item-block">
+                            <div class="setting-label"><span>主题颜色</span></div>
+                            <div class="theme-swatches" id="theme-accents"></div>
+                        </div>
+                        <div class="setting-item setting-item-block">
+                            <div class="setting-label"><span>背景颜色</span></div>
+                            <div class="theme-swatches" id="theme-backgrounds"></div>
+                        </div>
+                        <div class="setting-item setting-item-block">
+                            <div class="setting-label"><span>界面圆角</span></div>
+                            <div class="theme-swatches" id="theme-radii"></div>
+                        </div>
+                        <div class="setting-item setting-item-block">
+                            <div class="setting-label"><span>卡片密度</span></div>
+                            <div class="theme-swatches" id="theme-densities"></div>
+                        </div>
+                    </div>
+
+                    <div class="settings-section">
+                        <h3>提醒设置</h3>
+                        <div class="setting-item">
+                            <label class="setting-label">
+                                <input type="checkbox" id="setting-remind-enabled">
+                                <span>启用每日学习提醒</span>
+                            </label>
+                        </div>
+                        <div class="setting-item">
+                            <label class="setting-label">
+                                <span>提醒开始时间：</span>
+                                <input type="time" id="setting-remind-start" value="08:00">
+                            </label>
+                        </div>
+                        <div class="setting-item">
+                            <label class="setting-label">
+                                <span>提醒结束时间：</span>
+                                <input type="time" id="setting-remind-end" value="22:00">
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="settings-section">
+                        <h3>学习设置</h3>
+                        <div class="setting-item">
+                            <label class="setting-label">
+                                <span>默认测验模式：</span>
+                                <select id="setting-quiz-mode">
+                                    <option value="word_to_translation">看词选义</option>
+                                    <option value="translation_to_word">看义选词</option>
+                                    <option value="flashcard">词卡浏览</option>
+                                </select>
+                            </label>
+                        </div>
+                        <div class="setting-item">
+                            <label class="setting-label">
+                                <span>词汇来源：</span>
+                                <select id="setting-vocab-source">
+                                    <option value="all">全部词汇</option>
+                                    <option value="cet4">仅四级词汇</option>
+                                    <option value="cet6">仅六级词汇</option>
+                                </select>
+                            </label>
+                        </div>
+                        <div class="setting-item">
+                            <label class="setting-label">
+                                <span>每日学习词量：</span>
+                                <select id="setting-daily-count">
+                                    <option value="10">10 个</option>
+                                    <option value="20">20 个</option>
+                                    <option value="30">30 个</option>
+                                    <option value="50">50 个</option>
+                                    <option value="100">100 个</option>
+                                </select>
+                            </label>
+                        </div>
+                        <div class="setting-item">
+                            <label class="setting-label">
+                                <input type="checkbox" id="setting-exclude-mastered">
+                                <span>排除已掌握的词汇</span>
+                            </label>
+                        </div>
+                        <div class="setting-item">
+                            <label class="setting-label">
+                                <input type="checkbox" id="setting-high-freq-spelling">
+                                <span>高频词改用默写考察（看中文写英文，可提示字母）</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="settings-section">
+                        <h3>桌面与启动</h3>
+                        <div class="setting-item">
+                            <label class="setting-label">
+                                <input type="checkbox" id="setting-close-to-tray">
+                                <span>关闭窗口时最小化到系统托盘</span>
+                            </label>
+                        </div>
+                        <div class="setting-item">
+                            <label class="setting-label">
+                                <input type="checkbox" id="setting-auto-start">
+                                <span>开机自动启动</span>
+                            </label>
+                        </div>
+                        <div class="setting-item">
+                            <div class="setting-label">
+                                <span>系统托盘</span>
+                                <button class="btn btn-secondary btn-sm" id="hide-to-tray">隐藏到托盘</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="settings-actions">
+                        <button class="btn btn-primary" id="save-settings">保存设置</button>
+                        <button class="btn btn-secondary" id="test-notification">测试通知</button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="js/app.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/theme.js"></script>
+    <script src="js/quiz.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/notifications.js"></script>
+</body>
+</html>

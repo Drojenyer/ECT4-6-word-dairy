@@ -1,0 +1,13 @@
+# 默认按文本处理，仓库内统一为 LF，避免跨平台协作产生整文件 diff
+* text=auto eol=lf
+
+# Windows 批处理保留 CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# 二进制文件不做换行转换
+*.ico binary
+*.png binary
+*.pak binary
+*.dll binary
+*.exe binary

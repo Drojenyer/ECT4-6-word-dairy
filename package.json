@@ -1,0 +1,54 @@
+{
+  "name": "cet-vocab-learning-platform",
+  "version": "2.0.0",
+  "description": "英语四六级词汇学习平台 - Electron版本",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build-win": "electron-builder --win --x64 --portable",
+    "pack-win": "electron-packager . \"英语四六级词汇学习平台\" --platform=win32 --arch=x64 --icon=assets/icon.ico --out=dist --overwrite",
+    "dev": "electron . --dev"
+  },
+  "keywords": [
+    "CET4",
+    "CET6",
+    "vocabulary",
+    "learning"
+  ],
+  "author": "TRAE",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^27.0.0",
+    "electron-builder": "^24.6.0",
+    "electron-packager": "^17.1.2"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  },
+  "build": {
+    "appId": "com.trae.cetvocab",
+    "productName": "英语四六级词汇学习平台",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "server.js",
+      "data/**/*",
+      "src/**/*",
+      "assets/**/*"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  }
+}

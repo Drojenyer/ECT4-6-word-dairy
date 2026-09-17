@@ -1,0 +1,117 @@
+.stats-container {
+    max-width: 1000px;
+    margin: 0 auto;
+}
+
+.stats-container h2 {
+    font-size: 28px;
+    font-weight: 700;
+    margin-bottom: 32px;
+    color: var(--text-primary);
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 20px;
+}
+
+.stat-card {
+    background: var(--bg-card);
+    border-radius: var(--radius-lg);
+    padding: 22px;
+    border: 1px solid var(--border-light);
+    box-shadow: var(--shadow);
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    transition: var(--transition);
+    animation: fadeInUp 0.42s var(--ease-out) backwards;
+}
+
+.stat-card:nth-child(1) { animation-delay: 0.02s; }
+.stat-card:nth-child(2) { animation-delay: 0.06s; }
+.stat-card:nth-child(3) { animation-delay: 0.1s; }
+.stat-card:nth-child(4) { animation-delay: 0.14s; }
+.stat-card:nth-child(5) { animation-delay: 0.18s; }
+.stat-card:nth-child(6) { animation-delay: 0.22s; }
+.stat-card:nth-child(7) { animation-delay: 0.26s; }
+.stat-card:nth-child(8) { animation-delay: 0.3s; }
+
+.stat-card:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-lg);
+}
+
+.stat-icon {
+    font-size: 30px;
+    min-width: 46px;
+    height: 46px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-hover);
+    border-radius: var(--radius);
+}
+
+.stat-card:nth-child(1) .stat-icon { background: var(--danger-light); }
+.stat-card:nth-child(2) .stat-icon { background: var(--info-light); }
+.stat-card:nth-child(3) .stat-icon { background: var(--info-light); }
+.stat-card:nth-child(4) .stat-icon { background: var(--success-light); }
+.stat-card:nth-child(5) .stat-icon { background: var(--danger-light); }
+.stat-card:nth-child(6) .stat-icon { background: var(--primary-light); }
+.stat-card:nth-child(7) .stat-icon { background: var(--warning-light); }
+.stat-card:nth-child(8) .stat-icon { background: var(--primary-light); }
+
+.stat-content {
+    flex: 1;
+}
+
+.stat-value {
+    font-size: 32px;
+    font-weight: 700;
+    color: var(--text-primary);
+    line-height: 1.2;
+    margin-bottom: 4px;
+}
+
+.stat-label {
+    font-size: 14px;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+    .stats-container h2 {
+        font-size: 24px;
+    }
+
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .stat-card {
+        padding: 20px;
+    }
+
+    .stat-icon {
+        font-size: 28px;
+        min-width: 40px;
+        height: 40px;
+    }
+
+    .stat-value {
+        font-size: 24px;
+    }
+}
+
+@media (max-width: 480px) {
+    .stats-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .stat-card {
+        gap: 12px;
+    }
+}

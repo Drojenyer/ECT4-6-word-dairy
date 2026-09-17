@@ -1,0 +1,317 @@
+.home-container {
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+.welcome-section {
+    text-align: center;
+    margin-bottom: 36px;
+    animation: fadeIn 0.5s var(--ease-out);
+}
+
+.welcome-section h2 {
+    font-size: 28px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+}
+
+.welcome-section p {
+    font-size: 15px;
+    color: var(--text-secondary);
+}
+
+.checkin-status {
+    margin-bottom: 36px;
+    animation: fadeIn 0.5s var(--ease-out) 0.08s both;
+}
+
+.status-card {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 28px 32px;
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+    border-radius: var(--radius-xl);
+    color: var(--text-inverse);
+    box-shadow: var(--shadow-lg);
+    transition: transform 0.28s var(--ease-out), box-shadow 0.28s var(--ease-out);
+}
+
+.status-card:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-xl);
+}
+
+.status-icon {
+    font-size: 40px;
+    animation: bounce 2.4s ease-in-out infinite;
+}
+
+@keyframes bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
+}
+
+.status-content h3 {
+    font-size: 22px;
+    font-weight: 600;
+    margin-bottom: 6px;
+}
+
+.status-content p {
+    font-size: 15px;
+    opacity: 0.88;
+}
+
+.status-card.checked-in {
+    background: linear-gradient(135deg, var(--success) 0%, var(--success-dark) 100%);
+}
+
+.status-card.checked-in .status-icon {
+    animation: none;
+    font-size: 42px;
+}
+
+.quick-start {
+    animation: fadeIn 0.5s var(--ease-out) 0.16s both;
+}
+
+.quick-start h3 {
+    font-size: 17px;
+    font-weight: 600;
+    margin-bottom: 16px;
+    color: var(--text-primary);
+}
+
+.quick-actions {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 16px;
+}
+
+.quick-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 22px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    cursor: pointer;
+    transition: transform 0.24s var(--ease-out),
+                box-shadow 0.24s var(--ease-out),
+                border-color 0.24s var(--ease-standard);
+    text-align: left;
+    position: relative;
+    overflow: hidden;
+}
+
+.quick-btn::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, var(--primary-soft) 0%, transparent 70%);
+    opacity: 0;
+    transition: opacity 0.24s var(--ease-standard);
+}
+
+.quick-btn:hover::before {
+    opacity: 1;
+}
+
+.quick-btn:hover {
+    border-color: var(--primary);
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-lg);
+}
+
+.quick-btn:active {
+    transform: translateY(-1px);
+}
+
+.btn-icon {
+    font-size: 28px;
+    margin-bottom: 10px;
+    position: relative;
+    z-index: 1;
+}
+
+.btn-text {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 6px;
+    position: relative;
+    z-index: 1;
+    color: var(--text-primary);
+}
+
+.btn-desc {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    position: relative;
+    z-index: 1;
+}
+
+/* 今日学习进行中 */
+.continue-section {
+    margin-bottom: 24px;
+    animation: fadeInUp 0.42s var(--ease-out) backwards;
+}
+
+/* 艾宾浩斯复习提醒卡 */
+.review-section {
+    margin-bottom: 24px;
+    animation: fadeInUp 0.42s var(--ease-out) backwards;
+}
+
+.review-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 20px 24px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-light);
+    border-left: 3px solid var(--warning);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow);
+}
+
+.review-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.review-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 6px;
+}
+
+.review-icon {
+    font-size: 16px;
+}
+
+.review-text {
+    font-size: 14px;
+    color: var(--text-secondary);
+}
+
+.continue-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 20px 24px;
+    background: var(--bg-card);
+    border: 1px solid var(--primary-light);
+    border-left: 3px solid var(--primary);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow);
+}
+
+.continue-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.continue-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+}
+
+.continue-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--primary);
+    box-shadow: 0 0 0 4px var(--primary-light);
+}
+
+.continue-meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 10px;
+}
+
+.continue-mode {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--primary-text);
+    background: var(--primary-light);
+    padding: 3px 10px;
+    border-radius: 999px;
+}
+
+.continue-bar {
+    height: 6px;
+    background: var(--bg-active);
+    border-radius: 999px;
+    overflow: hidden;
+}
+
+.continue-bar-fill {
+    height: 100%;
+    width: 0;
+    background: linear-gradient(90deg, var(--primary-grad-start) 0%, var(--primary) 100%);
+    border-radius: 999px;
+    transition: width 0.45s var(--ease-out);
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+    .welcome-section h2 {
+        font-size: 24px;
+    }
+
+    .status-card {
+        flex-direction: column;
+        text-align: center;
+        padding: 24px;
+    }
+
+    .status-icon {
+        font-size: 40px;
+    }
+
+    .status-content h3 {
+        font-size: 24px;
+    }
+
+    .continue-card {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .review-card {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .quick-actions {
+        grid-template-columns: 1fr;
+    }
+
+    .quick-btn {
+        padding: 20px;
+    }
+}
