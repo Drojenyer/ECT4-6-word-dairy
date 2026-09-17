@@ -12,8 +12,12 @@ let serverPort = 3000;
 let isQuitting = false;
 let closeToTray = true;
 
-const DATA_DIR = path.join(os.homedir(), '.cet_vocab');
-const DATA_FILE = path.join(DATA_DIR, 'data.json');
+// 旧版把数据放在用户目录，便携版改放到程序目录旁边，拷贝整个文件夹就能带走进度
+const HOME_DATA_DIR = path.join(os.homedir(), '.cet_vocab');
+const HOME_DATA_FILE = path.join(HOME_DATA_DIR, 'data.json');
+
+// 实际数据文件位置在 initDataDir() 中确定
+let DATA_FILE = '';
 
 const DEFAULT_STATS = {
   streak_days: 0,
@@ -161,8 +165,70 @@ function normalizeData(parsed) {
   return { stats, settings, session };
 }
 
+// 目录能否写入（放 Program Files 之类的只读位置时需要回退）
+async function isWritable(dir) {
+  const probe = path.join(dir, `.write-probe-${Date.now()}`);
+
+  try {
+    await fs.writeFile(probe, '');
+    await fs.unlink(probe);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 确定数据目录。
+ * 便携版优先用程序（exe）同级的 user-data，写完就跟着文件夹走；
+ * 该位置不可写时回退到用户目录，保证程序在任何位置都能正常记录进度。
+ * 开发模式（electron .）仍用用户目录，避免把数据写进源码目录。
+ */
+async function resolveDataDir() {
+  const candidates = app.isPackaged
+    ? [path.join(path.dirname(app.getPath('exe')), 'user-data'), HOME_DATA_DIR]
+    : [HOME_DATA_DIR];
+
+  for (const dir of candidates) {
+    try {
+      await fs.mkdir(dir, { recursive: true });
+    } catch {
+      continue;
+    }
+
+    if (await isWritable(dir)) {
+      return dir;
+    }
+  }
+
+  return candidates[candidates.length - 1];
+}
+
+// 首次以便携模式运行时，把旧版留在用户目录的数据搬过来，避免看起来「进度丢了」
+async function migrateLegacyData() {
+  if (path.resolve(DATA_FILE) === path.resolve(HOME_DATA_FILE)) {
+    return;
+  }
+
+  try {
+    await fs.access(DATA_FILE);
+    return;
+  } catch {
+    // 便携目录里还没有数据，尝试从用户目录迁移
+  }
+
+  try {
+    await fs.copyFile(HOME_DATA_FILE, DATA_FILE);
+    console.log('已把旧数据迁移到:', DATA_FILE);
+  } catch {
+    // 用户目录也没有旧数据，属于正常首次运行
+  }
+}
+
 async function initDataDir() {
-  await fs.mkdir(DATA_DIR, { recursive: true });
+  DATA_FILE = path.join(await resolveDataDir(), 'data.json');
+
+  await migrateLegacyData();
 
   try {
     await fs.access(DATA_FILE);

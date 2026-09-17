@@ -5,6 +5,7 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
+    "pack-portable": "node build-portable.js",
     "build-win": "electron-builder --win --x64 --portable",
     "pack-win": "electron-packager . \"英语四六级词汇学习平台\" --platform=win32 --arch=x64 --icon=assets/icon.ico --out=dist --overwrite",
     "dev": "electron . --dev"
@@ -28,6 +29,7 @@
   "build": {
     "appId": "com.trae.cetvocab",
     "productName": "英语四六级词汇学习平台",
+    "asar": false,
     "directories": {
       "output": "dist"
     },
