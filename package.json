@@ -1,6 +1,6 @@
 {
   "name": "cet-vocab-learning-platform",
-  "version": "2.0.0",
+  "version": "1.0.0",
   "description": "英语四六级词汇学习平台 - Electron版本",
   "main": "main.js",
   "scripts": {
