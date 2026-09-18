@@ -1,0 +1,12 @@
+{
+  "appId": "com.drojenyer.cetvocab",
+  "appName": "四六级词汇",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": false,
+    "backgroundColor": "#f5f6f8"
+  }
+}

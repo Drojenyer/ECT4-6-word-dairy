@@ -1,0 +1,18 @@
+# 依赖与构建产物
+node_modules/
+dist/
+
+# 由 ../src 与 ../data 生成，不进版本库，避免出现两份实现
+index.html
+public/data/
+
+# Capacitor 同步出来的 Web 资源
+android/app/src/main/assets/public/
+
+# Android 构建产物与本地配置
+android/build/
+android/app/build/
+android/.gradle/
+android/local.properties
+android/.idea/
+*.iml

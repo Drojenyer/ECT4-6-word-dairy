@@ -1,0 +1,263 @@
+/**
+ * 移动端布局适配。
+ *
+ * 只在移动端构建里加载，因此不做媒体查询，直接覆盖桌面端样式。
+ * 页面 DOM 与桌面端完全一致（仍是「侧边栏 + 主内容区」），
+ * 这里靠重排把侧边栏变成底部标签栏、把侧边栏头部变成顶部栏，
+ * 从而避免维护第二份 index.html。
+ */
+
+:root {
+  /* 顶部栏与底部标签栏高度，正文留白按它俩计算 */
+  --mobile-topbar: 56px;
+  --mobile-tabbar: 60px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+html,
+body {
+  /* 移动端由内部页面滚动，避免整页橡皮筋 */
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ---------- 整体改为纵向：主内容在上，标签栏在下 ---------- */
+
+.app-container {
+  flex-direction: column;
+  height: 100dvh;
+}
+
+.main-content {
+  order: 1;
+  flex: 1;
+  min-height: 0;
+}
+
+.sidebar {
+  order: 2;
+  width: 100%;
+  flex: 0 0 auto;
+  flex-direction: row;
+  border-right: none;
+  border-top: 1px solid var(--border);
+  background: var(--bg-secondary);
+  padding-bottom: var(--safe-bottom);
+  box-shadow: 0 -1px 8px rgba(16, 24, 40, 0.05);
+}
+
+/* ---------- 侧边栏头部 → 顶部栏 ---------- */
+
+.sidebar-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: calc(var(--safe-top) + 10px) 16px 10px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-light);
+}
+
+.sidebar-header h1 {
+  font-size: 16px;
+  margin-bottom: 0;
+}
+
+.sidebar-header .streak-badge {
+  padding: 4px 12px;
+  font-size: 12px;
+}
+
+.streak-icon {
+  font-size: 13px;
+}
+
+.streak-count {
+  font-size: 14px;
+}
+
+/* 版本信息在手机上没有必要占位 */
+.sidebar-footer {
+  display: none;
+}
+
+/* ---------- 导航项 → 底部标签栏 ---------- */
+
+.nav-menu {
+  display: flex;
+  flex: 1;
+  padding: 0;
+  overflow: visible;
+}
+
+.nav-item {
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  margin-bottom: 0;
+  padding: 8px 4px;
+  min-height: var(--mobile-tabbar);
+  border-radius: 0;
+  font-size: 11px;
+  font-weight: 500;
+  background: transparent;
+}
+
+/* 触屏没有悬停态，保留位移会显得抖动 */
+.nav-item:hover {
+  background: transparent;
+  color: var(--text-secondary);
+  transform: none;
+}
+
+.nav-item.active {
+  background: transparent;
+  color: var(--primary-text);
+  font-weight: 600;
+}
+
+.nav-item.active .nav-icon {
+  transform: translateY(-1px) scale(1.08);
+}
+
+.nav-icon {
+  width: auto;
+  font-size: 20px;
+  transition: transform 0.2s var(--ease-out);
+}
+
+/* ---------- 页面留白：避开顶部栏与底部标签栏 ---------- */
+
+.page {
+  padding: calc(var(--mobile-topbar) + var(--safe-top) + 14px) 14px
+           calc(var(--mobile-tabbar) + var(--safe-bottom) + 20px);
+}
+
+/* ---------- 触控优化 ---------- */
+
+.btn {
+  min-height: 44px;
+  padding: 12px 20px;
+}
+
+.btn-sm {
+  min-height: 36px;
+  padding: 8px 14px;
+}
+
+/* 悬停位移在触屏上会造成误触观感 */
+.btn:hover {
+  transform: none;
+}
+
+.quiz-option {
+  min-height: 52px;
+}
+
+.quiz-options {
+  grid-template-columns: 1fr;
+}
+
+/* 排序 chips 横向滚动，避免换行挤压 */
+.sort-chips,
+.mistakes-toolbar,
+.layout-switch {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.sort-chips::-webkit-scrollbar,
+.mistakes-toolbar::-webkit-scrollbar {
+  display: none;
+}
+
+.sort-chip,
+.layout-switch button {
+  flex: 0 0 auto;
+}
+
+/* 输入框字号小于 16px 时部分内核会自动放大页面 */
+.spelling-input,
+input[type="text"],
+input[type="time"],
+select {
+  font-size: 16px;
+}
+
+/* 设置页里的「桌面与启动」区块是桌面专属（托盘 / 开机自启） */
+.settings-section:has(#setting-close-to-tray) {
+  display: none;
+}
+
+/* 桌面端容器宽度上限在窄屏上会显得拥挤，改为撑满 */
+.settings-container,
+.stats-container,
+.mistakes-container {
+  max-width: 100%;
+}
+
+/* 统计卡片由多列改为两列 */
+.stats-grid {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+/* ---------- 启动引导页（首启播种词库时显示） ---------- */
+
+#boot-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  background: var(--bg-primary);
+}
+
+.boot-card {
+  width: 100%;
+  max-width: 320px;
+  text-align: center;
+}
+
+.boot-logo {
+  font-size: 48px;
+  margin-bottom: 12px;
+}
+
+.boot-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 24px;
+}
+
+.boot-status {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+  min-height: 22px;
+}
+
+.boot-bar {
+  height: 6px;
+  background: var(--bg-active);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.boot-bar-fill {
+  height: 100%;
+  width: 0;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--primary-grad-start) 0%, var(--primary) 100%);
+  transition: width 0.3s var(--ease-out);
+}

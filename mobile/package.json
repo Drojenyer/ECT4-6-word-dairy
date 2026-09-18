@@ -1,0 +1,28 @@
+{
+  "name": "cet-vocab-mobile",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "英语四六级词汇学习平台 · 移动端（Capacitor + IndexedDB）",
+  "scripts": {
+    "sync:html": "node scripts/sync-html.js",
+    "sync:data": "node scripts/sync-data.js",
+    "prepare:web": "npm run sync:html && npm run sync:data",
+    "dev": "npm run prepare:web && vite",
+    "build": "npm run prepare:web && vite build",
+    "preview": "vite preview",
+    "cap:add": "cap add android",
+    "cap:sync": "cap sync android",
+    "build:apk": "npm run build && cap sync android && cd android && gradlew assembleDebug"
+  },
+  "dependencies": {
+    "@capacitor/android": "^7.0.0",
+    "@capacitor/core": "^7.0.0",
+    "@capacitor/local-notifications": "^7.0.0",
+    "dexie": "^4.0.10"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^7.0.0",
+    "vite": "^6.0.7"
+  }
+}

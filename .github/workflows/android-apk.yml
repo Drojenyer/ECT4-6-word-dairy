@@ -1,0 +1,100 @@
+name: 构建 Android APK
+
+# 移动端代码或共用的前端/词库数据变动时自动出包，
+# 也可以在 Actions 页面手动触发。
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'mobile/**'
+      - 'src/**'
+      - 'data/**'
+      - '.github/workflows/android-apk.yml'
+  workflow_dispatch:
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: 拉取代码
+        uses: actions/checkout@v4
+
+      - name: 准备 Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      # Capacitor 7 使用 AGP 8.7，需要 JDK 21
+      - name: 准备 JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: 准备 Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: 安装 SDK 组件（compileSdk 35）
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools"
+
+      - name: 安装依赖
+        working-directory: mobile
+        run: npm ci
+
+      # 生成移动端入口 HTML，并把词库数据复制到 public/data
+      - name: 构建 Web 资源
+        working-directory: mobile
+        run: npm run build
+
+      - name: 同步到 Android 工程
+        working-directory: mobile
+        run: npx cap sync android
+
+      # debug 签名密钥默认每次由新 runner 重新生成，会导致后续版本无法覆盖安装
+      # （装不上就只能卸载重装，IndexedDB 里的学习进度会一起没）。
+      # 这里用固定 key 的缓存持久化同一个密钥，保证升级安装的签名一致。
+      - name: 恢复签名密钥
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: android-debug-keystore-v1
+
+      - name: 生成签名密钥（缓存未命中时）
+        run: |
+          KEYSTORE="$HOME/.android/debug.keystore"
+          mkdir -p "$HOME/.android"
+          if [ ! -f "$KEYSTORE" ]; then
+            keytool -genkeypair -v \
+              -keystore "$KEYSTORE" \
+              -storepass android -keypass android \
+              -alias androiddebugkey \
+              -keyalg RSA -keysize 2048 -validity 10950 \
+              -dname "CN=Android Debug,O=Android,C=US"
+            echo "已生成新的签名密钥"
+          else
+            echo "复用缓存中的签名密钥"
+          fi
+
+      - name: 打包 APK
+        working-directory: mobile/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: 整理产物
+        run: |
+          mkdir -p output
+          cp mobile/android/app/build/outputs/apk/debug/app-debug.apk output/cet-vocab-android.apk
+          ls -lh output
+
+      - name: 上传 APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: cet-vocab-android-apk
+          path: output/cet-vocab-android.apk
+          if-no-files-found: error
+          retention-days: 90
