@@ -35,19 +35,53 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      # ubuntu 运行器已预装 Android SDK 并设好 ANDROID_HOME / ANDROID_SDK_ROOT，
-      # 这里只补装 compileSdk 35 需要的组件即可（不引第三方 action，少一处失败点）
-      - name: 确认 Android SDK
+      # 运行器是否预装 Android SDK 并不稳定（ubuntu-latest 上 sdkmanager 可能不在 PATH），
+      # 这里先找现成的，找不到就自己下命令行工具，保证任何镜像都能出包。
+      - name: 准备 Android SDK
         run: |
-          echo "ANDROID_HOME=$ANDROID_HOME"
-          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
-          sdkmanager --version
-          ls "$ANDROID_HOME/platforms" || true
+          SDK=""
+          SDKMGR=""
 
-      - name: 安装 SDK 组件（compileSdk 35）
-        run: |
-          yes | sdkmanager --licenses > /dev/null 2>&1 || true
-          sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools"
+          for base in "${ANDROID_SDK_ROOT:-}" "${ANDROID_HOME:-}" /usr/local/lib/android/sdk "$HOME/Android/Sdk"; do
+            if [ -z "$base" ] || [ ! -d "$base" ]; then
+              continue
+            fi
+            for candidate in "$base/cmdline-tools/latest/bin/sdkmanager" "$base/cmdline-tools/bin/sdkmanager" "$base/tools/bin/sdkmanager"; do
+              if [ -x "$candidate" ]; then
+                SDK="$base"
+                SDKMGR="$candidate"
+                break 2
+              fi
+            done
+          done
+
+          if [ -z "$SDKMGR" ]; then
+            echo "运行器未提供 Android 命令行工具，改为自行下载"
+            SDK="$HOME/android-sdk"
+            mkdir -p "$SDK/cmdline-tools"
+            for build in 15859902 14742923 13114758 11076708; do
+              url="https://dl.google.com/android/repository/commandlinetools-linux-${build}_latest.zip"
+              if curl -fsSL -o /tmp/cmdline-tools.zip "$url"; then
+                echo "已下载 $url"
+                break
+              fi
+            done
+            unzip -q /tmp/cmdline-tools.zip -d "$SDK/cmdline-tools"
+            mv "$SDK/cmdline-tools/cmdline-tools" "$SDK/cmdline-tools/latest"
+            SDKMGR="$SDK/cmdline-tools/latest/bin/sdkmanager"
+          fi
+
+          echo "SDK 目录: $SDK"
+          echo "sdkmanager: $SDKMGR"
+          "$SDKMGR" --version
+
+          echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
+          echo "$(dirname "$SDKMGR")" >> "$GITHUB_PATH"
+          echo "$SDK/platform-tools" >> "$GITHUB_PATH"
+
+          yes | "$SDKMGR" --licenses > /dev/null 2>&1 || true
+          "$SDKMGR" "platforms;android-35" "build-tools;35.0.0" "platform-tools"
 
       - name: 安装依赖
         working-directory: mobile
