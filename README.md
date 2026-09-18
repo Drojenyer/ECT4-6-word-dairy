@@ -77,6 +77,64 @@ node build-portable.js E:\目标目录  # 输出到指定目录
 
 打包脚本直接使用 `node_modules/electron/dist` 里已解压的 Electron 运行时组装，全程只做文件复制，无需联网，也不需要代码签名工具链。
 
+## 移动端（Android）
+
+位于 `mobile/`，用 Capacitor 包壳 + IndexedDB 改造，产出单 APK 直接 sideload 安装。
+
+### 与桌面端的关系
+
+前端页面逻辑（`quiz.js`、`ui.js`、`theme.js` 与全部样式）**直接复用桌面端的同一份文件**，没有副本，改一处两端同时生效。移动端只替换了三个与平台强相关的文件：
+
+| 文件 | 桌面端 | 移动端 |
+|------|--------|--------|
+| `api.js` | HTTP 请求内置 Express 服务 | 直接读写 IndexedDB（Dexie） |
+| `notifications.js` | Electron 主进程系统通知 | Capacitor 本地通知 |
+| `app.js` | Electron IPC 启动 | 播种数据后启动 |
+
+桌面端 `main.js` 里的业务规则（统计、错词、艾宾浩斯曲线、打卡、会话）移植到了 `mobile/src/services.js`；原先靠文件锁串行化的读改写，改用 IndexedDB 事务保证原子性。
+
+### 本地开发
+
+```bash
+cd mobile
+npm install
+npm run dev          # 浏览器里跑，Fast Refresh 调试最快
+npm run build        # 产出 dist/（Web 资源）
+npm run build:apk    # 本机打包 APK，需要 Android SDK + JDK 21
+```
+
+`npm run dev` / `npm run build` 会自动先跑两个同步脚本：
+
+- `sync-html.js` —— 由桌面端 `src/index.html` 生成移动端入口，只改脚本加载方式与 viewport，**不维护第二份 HTML**
+- `sync-data.js` —— 把 `data/` 下的词库复制到 `public/data/`，供首启播种使用
+
+### 云端打包 APK
+
+本机不必装 Android SDK。推送到 `main` 后由 `.github/workflows/android-apk.yml` 自动构建，在仓库的 **Actions → 构建 Android APK → Artifacts** 下载 `cet-vocab-android-apk`。
+
+工作流做了两件必要的事：
+
+- **自己准备 Android SDK**：运行器是否预装 sdkmanager 不稳定，找不到就下载官方命令行工具并安装 compileSdk 35
+- **固定签名密钥**：debug 签名默认每次由新运行器重新生成，会导致新版本无法覆盖安装（装不上就只能卸载，IndexedDB 里的学习进度会一起没）。这里用固定 key 缓存同一个密钥，保证升级安装的签名一致
+
+### 数据存放与迁移
+
+移动端数据在 IndexedDB 里（库名 `cet-vocab`），随应用卸载一并清除。表结构见 `mobile/src/db.js`：
+
+- `vocab` —— 词库，联合主键 `[level+word]`（CET4/CET6 大量词汇重叠，只用 word 会互相覆盖）
+- `mistakes` —— 错题本，独立成表并按 `next_review` 建索引，可直接查「今天该复习哪些」
+- `stats` / `settings` / `sessions` —— 各存一条单例记录
+- `phonetics` / `highfreq` —— 只读音标表与高频词表
+- `meta` —— 记录数据版本，用于判断是否需要重新播种
+
+首启会把词库播种进 IndexedDB（有进度提示），数据文件按内容哈希生成版本号，版本变了才重建。
+
+**从桌面端迁移进度**：`api.importLegacyData(parsed)` 支持直接吃桌面端 `user-data/data.json` 的内容，兼容旧版把统计放在根节点的格式。
+
+### 一个数据质量修正
+
+源词库文件由多份词表拼接而成，同一个单词会出现 2～3 次，释义各有侧重（例如 `absorb` 出现 3 次）。桌面端原样保留，会在一局里重复考同一个词，且干扰项是同词的其他释义。移动端在播种时**按单词合并释义并去重**：CET4 7508 条 → 4544 个词，CET6 5651 条 → 3992 个词。
+
 ## 目录结构
 
 ```
@@ -98,6 +156,17 @@ node build-portable.js E:\目标目录  # 输出到指定目录
 │   ├── cet4-phonetic.json    # 四级词典数据（含音标，3837 词）
 │   ├── cet6-phonetic.json    # 六级词典数据（含音标，5382 词）
 │   └── high_freq_words.json  # 高频词表（2558 词，含真题词频）
+├── mobile/               # 移动端
+│   ├── src/
+│   │   ├── db.js         # IndexedDB 表结构（Dexie）
+│   │   ├── services.js   # 业务逻辑（桌面端 main.js 的规则移植）
+│   │   ├── seed.js       # 首启把词库播种进 IndexedDB
+│   │   ├── main.js       # 入口：装配平台实现 + 共用逻辑
+│   │   ├── platform/     # 平台覆盖层（api / notifications / app）
+│   │   └── styles/mobile.css  # 侧边栏重排为底部标签栏
+│   ├── scripts/          # 由 ../src 与 ../data 生成移动端入口与资源
+│   └── android/          # Capacitor 生成的 Android 工程
+├── .github/workflows/    # 云端构建 APK
 └── assets/               # 图标
 ```
 
@@ -127,8 +196,10 @@ node build-portable.js E:\目标目录  # 输出到指定目录
 ## 技术栈
 
 - **Electron 27** — 桌面运行时
-- **Express 4** — 内置本地 HTTP 服务（前端与后端同源，避免跨域）
-- **原生 HTML / CSS / JavaScript** — 无前端框架，样式全部基于 CSS 变量实现主题化
+- **Express 4** — 桌面端内置本地 HTTP 服务（前端与后端同源，避免跨域）
+- **Capacitor 7 + Vite 6** — 移动端打包成 Android APK
+- **Dexie 4（IndexedDB）** — 移动端本地数据库，替代桌面端的 data.json
+- **原生 HTML / CSS / JavaScript** — 无前端框架，样式全部基于 CSS 变量实现主题化，两端共用
 
 ## 版本
 
