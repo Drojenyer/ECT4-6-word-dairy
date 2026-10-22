@@ -2,6 +2,7 @@ const { app, BrowserWindow, Notification, ipcMain, Tray, Menu, nativeImage } = r
 const path = require('path');
 const express = require('express');
 const fs = require('fs').promises;
+const crypto = require('crypto');
 const os = require('os');
 
 let mainWindow;
@@ -11,6 +12,14 @@ let reminderInterval;
 let serverPort = 3000;
 let isQuitting = false;
 let closeToTray = true;
+let appStartTime = 0;
+let isStudying = false;
+let lastReminderTime = 0;
+// 窗口材质：'none' 普通底色，'acrylic' Windows 11 半透明
+let windowMaterial = 'default';
+
+// 关闭材质后窗口恢复的默认底色，与页面浅灰底保持一致
+const WINDOW_BASE_COLOR = '#f6f7f9';
 
 // 旧版把数据放在用户目录，便携版改放到程序目录旁边，拷贝整个文件夹就能带走进度
 const HOME_DATA_DIR = path.join(os.homedir(), '.cet_vocab');
@@ -18,6 +27,13 @@ const HOME_DATA_FILE = path.join(HOME_DATA_DIR, 'data.json');
 
 // 实际数据文件位置在 initDataDir() 中确定
 let DATA_FILE = '';
+
+// The local translation credential file lives beside the executable. It is
+// outside resources/app and is never exposed by express.static(src).
+const TRANSLATION_CONFIG_FILE = path.join(
+  app.isPackaged ? path.dirname(app.getPath('exe')) : __dirname,
+  'baidu-translate.local.json'
+);
 
 const DEFAULT_STATS = {
   streak_days: 0,
@@ -27,7 +43,11 @@ const DEFAULT_STATS = {
   correct_count: 0,
   wrong_count: 0,
   mastered_words: [],
-  wrong_words: []
+  wrong_words: [],
+  // 打过卡的日期（"YYYY-MM-DD"），供统计页的打卡日历标注
+  checkin_dates: [],
+  // 每日学习时长（秒），形如 {"2026-09-30": 1830}
+  study_time: {}
 };
 
 const DEFAULT_SETTINGS = {
@@ -41,6 +61,8 @@ const DEFAULT_SETTINGS = {
   high_freq_spelling: true,
   close_to_tray: true,
   auto_start: false,
+  // 窗口是否启用 Windows 11 亚克力材质（界面半透明，透出桌面）
+  window_material: 'default',
   daily_count: 100,
   last_tab: 'home',
   // 错题本的排列方式与显示模式
@@ -88,6 +110,60 @@ function nextReviewDate(stage, fromDate) {
   return addDays(fromDate, interval);
 }
 
+// 日历只认 "YYYY-MM-DD" 这种日期键
+function isDateKey(value) {
+  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
+// 打卡日期去重并按时间排序
+function uniqueDates(list) {
+  return [...new Set((list || []).filter(isDateKey))].sort();
+}
+
+/**
+ * 打卡要逐日记下来，日历才知道哪几天打过卡。
+ * 逐日记录是本版新增的，旧数据里没有，按可靠性依次兜底：
+ *   1. 早期 Python 版存过 checkin_records，直接取它的日期；
+ *   2. 只剩 last_check_in + streak_days 时，按「连续 N 天」倒推出最近这一段的日期 ——
+ *      连续打卡的定义就是这 N 天每天都打了卡，所以这段是可以确定的。
+ * 一旦写进数据文件就不再重算，缺失时才会补。
+ */
+function resolveCheckinDates(raw, stats) {
+  const saved = raw.stats && Array.isArray(raw.stats.checkin_dates)
+    ? uniqueDates(raw.stats.checkin_dates)
+    : null;
+
+  if (saved) {
+    return saved;
+  }
+
+  if (raw.checkin_records && typeof raw.checkin_records === 'object') {
+    const fromRecords = uniqueDates(Object.keys(raw.checkin_records));
+    if (fromRecords.length) {
+      return fromRecords;
+    }
+  }
+
+  if (!isDateKey(stats.last_check_in)) {
+    return [];
+  }
+
+  const streakDays = Math.max(1, Number(stats.streak_days) || 1);
+  const dates = [];
+
+  for (let i = streakDays - 1; i >= 0; i--) {
+    dates.push(addDays(stats.last_check_in, -i));
+  }
+
+  return uniqueDates(dates);
+}
+
+// 记下打卡日期；同一天重复打卡不会写两条
+function recordCheckinDate(stats, dateKey) {
+  const dates = Array.isArray(stats.checkin_dates) ? stats.checkin_dates : [];
+  stats.checkin_dates = uniqueDates(dates.concat(dateKey));
+}
+
 /**
  * 补齐错词的复习计划字段。
  * 旧数据的错词只有 word/translation/level/phrases，这里补上默认值，
@@ -104,12 +180,17 @@ function normalizeWrongWord(item) {
   return {
     word: item.word,
     translation: item.translation || '',
+    pos: item.pos || '',
     level: item.level || '',
     phrases: Array.isArray(item.phrases) ? item.phrases : [],
     added_at: addedAt,
     stage,
     wrong_count: Number(item.wrong_count) || 1,
     review_count: Number(item.review_count) || 0,
+    intensive: typeof item.intensive === 'boolean'
+      ? item.intensive
+      : (Number(item.wrong_count) || 1) >= 2 && !item.graduated,
+    intensive_correct: Math.max(0, Number(item.intensive_correct) || 0),
     last_review: item.last_review || null,
     next_review: item.next_review || nextReviewDate(stage, addedAt),
     graduated: typeof item.graduated === 'boolean'
@@ -152,6 +233,12 @@ function normalizeData(parsed) {
   }
 
   stats.wrong_words = (stats.wrong_words || []).map(normalizeWrongWord).filter(Boolean);
+  stats.checkin_dates = resolveCheckinDates(raw, stats);
+
+  // 每日学习时长：缺失或格式不对时退回空表，避免前端读到脏数据
+  if (!stats.study_time || typeof stats.study_time !== 'object' || Array.isArray(stats.study_time)) {
+    stats.study_time = {};
+  }
 
   if (raw.settings && raw.settings.level && !raw.settings.vocab_source) {
     settings.vocab_source = String(raw.settings.level).toLowerCase();
@@ -287,23 +374,43 @@ function updateData(mutator) {
   return run;
 }
 
-const vocabCache = new Map();
-
 async function loadVocab(fileName, level) {
-  if (vocabCache.has(level)) {
-    return vocabCache.get(level);
+  const content = await fs.readFile(path.join(__dirname, 'data', fileName), 'utf-8');
+  return JSON.parse(content).map(item => {
+    const translations = item.translations || [];
+    const posSet = [...new Set(translations.map(t => t.type).filter(Boolean))];
+    return {
+      word: item.word,
+      translation: translations.map(t => t.translation).join('；'),
+      pos: posSet.join('/'),
+      level,
+      phrases: item.phrases || []
+    };
+  });
+
+}
+
+function sampleVocabulary(words, limit, excludedWords = new Set()) {
+  const requested = Math.max(1, Number(limit) || words.length);
+  const eligibleSample = [];
+  const fallbackSample = [];
+  let eligibleCount = 0;
+  let excludedCount = 0;
+
+  for (const item of words) {
+    const eligible = !excludedWords.has(item.word);
+    if (eligible) eligibleCount += 1;
+    else excludedCount += 1;
+    const sample = eligible ? eligibleSample : fallbackSample;
+    const seen = eligible ? eligibleCount : excludedCount;
+    if (sample.length < requested) sample.push(item);
+    else {
+      const index = Math.floor(Math.random() * seen);
+      if (index < requested) sample[index] = item;
+    }
   }
 
-  const content = await fs.readFile(path.join(__dirname, 'data', fileName), 'utf-8');
-  const words = JSON.parse(content).map(item => ({
-    word: item.word,
-    translation: (item.translations || []).map(t => t.translation).join('；'),
-    level,
-    phrases: item.phrases || []
-  }));
-
-  vocabCache.set(level, words);
-  return words;
+  return eligibleCount > 0 ? eligibleSample : fallbackSample;
 }
 
 let highFreqMapCache = null;
@@ -373,7 +480,74 @@ async function loadPhoneticMap() {
   return map;
 }
 
+let posMapCache = null;
+
+/**
+ * 词性表：word（小写）-> 词性（adv / v / n ...）。
+ * 错词与续学会话里存的是历史快照，可能没有词性，
+ * 前端用它把词性补齐，避免复习时看不到词性。
+ */
+async function loadPosMap() {
+  if (posMapCache) {
+    return posMapCache;
+  }
+
+  const map = {};
+
+  for (const [fileName, level] of [['3-CET4-顺序.json', 'CET4'], ['4-CET6-顺序.json', 'CET6']]) {
+    try {
+      const words = await loadVocab(fileName, level);
+
+      words.forEach(item => {
+        const word = item && item.word ? String(item.word).trim().toLowerCase() : '';
+
+        if (word && item.pos && !map[word]) {
+          map[word] = item.pos;
+        }
+      });
+    } catch (error) {
+      console.error(`加载词性表 ${fileName} 失败:`, error);
+    }
+  }
+
+  posMapCache = map;
+  return map;
+}
+
+/**
+ * 窗口亚克力材质是 Windows 11 22H2（内部版本 22621）起才有的系统能力，
+ * 更早的系统上直接当作不支持，界面照常显示普通底色。
+ */
+function supportsWindowMaterial() {
+  if (process.platform !== 'win32') {
+    return false;
+  }
+
+  const build = Number(String(os.release()).split('.')[2]);
+  return build >= 22621;
+}
+
+/**
+ * 应用窗口材质。窗口底色要一起调成透明，
+ * 否则页面下面的不透明底色会把系统材质整个盖住。
+ */
+function applyWindowMaterial(material) {
+  if (!mainWindow || mainWindow.isDestroyed()) return false;
+  const target = material === 'acrylic' && supportsWindowMaterial() ? 'acrylic' : 'none';
+
+  try {
+    mainWindow.setBackgroundMaterial(target);
+    mainWindow.setBackgroundColor(target === 'acrylic' ? '#00000000' : WINDOW_BASE_COLOR);
+    return material !== 'acrylic' || target === 'acrylic';
+  } catch (error) {
+    console.error('设置窗口材质失败:', error);
+    return false;
+  }
+}
+
 function createWindow() {
+  const material = supportsWindowMaterial() && windowMaterial === 'acrylic' ? 'acrylic' : 'none';
+
   mainWindow = new BrowserWindow({
       width: 1100,
       height: 750,
@@ -384,8 +558,12 @@ function createWindow() {
         contextIsolation: false,
         enableRemoteModule: true
       },
-      frame: true,
-      backgroundColor: '#f6f7f9'
+      frame: process.platform !== 'win32',
+      thickFrame: true,
+      hasShadow: true,
+      // 开了亚克力材质窗口底色必须透明，否则会盖住系统材质
+      backgroundColor: material === 'acrylic' ? '#00000000' : WINDOW_BASE_COLOR,
+      backgroundMaterial: material
     });
 
   // 通过本地服务器加载页面，保证前端与后端同源，避免跨域导致接口请求失败
@@ -394,6 +572,14 @@ function createWindow() {
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
   });
+
+  const notifyMaximizeState = () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('window:maximize-change', mainWindow.isMaximized());
+    }
+  };
+  mainWindow.on('maximize', notifyMaximizeState);
+  mainWindow.on('unmaximize', notifyMaximizeState);
 
   // 关闭窗口时最小化到系统托盘
   mainWindow.on('close', (event) => {
@@ -433,6 +619,76 @@ function createServer() {
     res.sendFile(path.join(__dirname, 'src', 'index.html'));
   });
 
+  // Read credentials on each request so local configuration changes take effect
+  // without copying secrets into the frontend or user learning data.
+  expressApp.post('/api/translate', async (req, res) => {
+    const remote = req.socket.remoteAddress || '';
+    const host = req.headers.host || '';
+    const origin = req.headers.origin || '';
+    const allowedHost = new Set([`localhost:${serverPort}`, `127.0.0.1:${serverPort}`]);
+    let sameOrigin = !origin;
+    if (origin) {
+      try {
+        const parsed = new URL(origin);
+        sameOrigin = parsed.protocol === 'http:' && allowedHost.has(parsed.host);
+      } catch {
+        sameOrigin = false;
+      }
+    }
+    if (!['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(remote)
+      || !allowedHost.has(host) || !sameOrigin) {
+      return res.status(403).json({ error: '仅允许本机调用翻译' });
+    }
+    const { text, target_lang: target } = req.body || {};
+    if (typeof text !== 'string' || !text.trim() || Buffer.byteLength(text, 'utf8') > 6000
+      || !['zh', 'en'].includes(target)) {
+      return res.status(400).json({ error: '请输入有效的翻译文本（原文最多 6000 字节）' });
+    }
+    let appId;
+    let key;
+    try {
+      const config = JSON.parse(await fs.readFile(TRANSLATION_CONFIG_FILE, 'utf8'));
+      appId = typeof config.appId === 'string' ? config.appId.trim() : '';
+      key = typeof config.apiKey === 'string' ? config.apiKey.trim() : '';
+      if (!appId || !key || appId.length > 100 || key.length > 200) throw new Error('invalid');
+    } catch {
+      return res.status(503).json({ error: '未找到有效的百度翻译配置，请检查程序目录中的 baidu-translate.local.json' });
+    }
+    const query = text.trim();
+    const salt = crypto.randomBytes(8).toString('hex');
+    const sign = crypto.createHash('md5').update(`${appId}${query}${salt}${key}`, 'utf8').digest('hex');
+    const form = new URLSearchParams({ q: query, from: 'auto', to: target, appid: appId, salt, sign });
+    try {
+      const response = await fetch('https://fanyi-api.baidu.com/api/trans/vip/translate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: form.toString(),
+        signal: AbortSignal.timeout(15000)
+      });
+      if (!response.ok) {
+        return res.status(502).json({ error: `百度翻译请求失败（HTTP ${response.status}）` });
+      }
+      const result = await response.json();
+      if (result.error_code) {
+        const errors = {
+          52001: '百度翻译请求超时，请稍后重试',
+          52002: '百度翻译系统错误，请稍后重试',
+          52003: '百度翻译未授权，请核对 APP ID 和密钥',
+          54000: '百度翻译参数错误，请核对 APP ID',
+          54001: '百度翻译签名错误，请核对 APP ID 和配套密钥',
+          54003: '请求过于频繁，请稍后重试',
+          54004: '百度翻译额度已用完',
+          58000: '百度翻译客户端 IP 受限'
+        };
+        return res.status(502).json({ error: errors[result.error_code] || `百度翻译错误（${result.error_code}）` });
+      }
+      const translations = Array.isArray(result.trans_result) ? result.trans_result : [];
+      return res.json({ text: translations.map(item => item.dst || '').join('\n'), source_lang: result.from });
+    } catch {
+      return res.status(502).json({ error: '无法连接百度翻译，请检查网络或切换其他 API' });
+    }
+  });
+
   expressApp.get('/api/stats', async (req, res) => {
     const data = await loadData();
     res.json(data.stats);
@@ -465,6 +721,8 @@ function createServer() {
       // 再次答错的词直接回到第一个复习阶段，重新开始记忆曲线
       if (existing) {
         existing.wrong_count = (existing.wrong_count || 1) + 1;
+        existing.intensive = existing.wrong_count >= 2;
+        existing.intensive_correct = 0;
         existing.stage = 0;
         existing.graduated = false;
         existing.next_review = nextReviewDate(0, todayString());
@@ -507,6 +765,10 @@ function createServer() {
       item.review_count = (item.review_count || 0) + 1;
 
       if (isCorrect && !hinted) {
+        if (item.intensive) {
+          item.intensive_correct = (item.intensive_correct || 0) + 1;
+          if (item.intensive_correct >= 3) item.intensive = false;
+        }
         item.stage = (item.stage || 0) + 1;
         item.next_review = nextReviewDate(item.stage, today);
         item.graduated = item.stage >= REVIEW_INTERVALS.length;
@@ -548,7 +810,29 @@ function createServer() {
     res.json({ success: true, stats });
   });
 
+  // 学习时长：前端按「停在学习页 + 有操作」累计，每隔一段分批上报
+  expressApp.post('/api/stats/study', async (req, res) => {
+    const seconds = Math.max(0, Math.round(Number(req.body && req.body.seconds) || 0));
+
+    if (!seconds) {
+      return res.json({ success: true });
+    }
+
+    const stats = await updateData(data => {
+      if (!data.stats.study_time || typeof data.stats.study_time !== 'object') {
+        data.stats.study_time = {};
+      }
+
+      const today = todayString();
+      data.stats.study_time[today] = (Number(data.stats.study_time[today]) || 0) + seconds;
+      return data.stats;
+    });
+
+    res.json({ success: true, stats });
+  });
+
   /* ---------- 今日学习进度（断点续学） ---------- */
+
   expressApp.get('/api/session', async (req, res) => {
     const data = await loadData();
     res.json(data.session || null);
@@ -590,9 +874,14 @@ function createServer() {
     res.json(await loadPhoneticMap());
   });
 
+  // 词性表，同样要注册在通配路由之前
+  expressApp.get('/api/vocab/pos', async (req, res) => {
+    res.json(await loadPosMap());
+  });
+
   // 词库原始格式为 { word, translations: [{ translation, type }], phrases }，
   // 这里统一转换成前端直接可用的结构（translation 为字符串、补充 level），
-  // 同时缓存解析结果，避免每次开始测验都重复解析 10MB 级的 JSON。
+  // 仅返回本局所需词条，避免向渲染进程传输整套词库。
   expressApp.get('/api/vocab/:level', async (req, res) => {
     const level = String(req.params.level).toUpperCase();
     const files = { CET4: '3-CET4-顺序.json', CET6: '4-CET6-顺序.json' };
@@ -602,7 +891,12 @@ function createServer() {
     }
 
     try {
-      res.json(await loadVocab(files[level], level));
+      const words = await loadVocab(files[level], level);
+      const limit = Math.min(Math.max(1, Number(req.query.limit) || words.length), words.length);
+      const data = await loadData();
+      const mastered = new Set(data.stats && Array.isArray(data.stats.mastered_words)
+        ? data.stats.mastered_words : []);
+      res.json(sampleVocabulary(words, limit, req.query.exclude_mastered === 'false' ? new Set() : mastered));
     } catch (error) {
       console.error('词库加载失败:', error);
       res.status(500).json({ error: 'Failed to load vocabulary' });
@@ -633,6 +927,9 @@ function createServer() {
         data.stats.last_check_in = today;
         data.stats.total_days = (data.stats.total_days || 0) + 1;
       }
+
+      // 逐日记录打卡日期，供统计页的日历标注
+      recordCheckinDate(data.stats, today);
 
       return data.stats;
     });
@@ -780,6 +1077,17 @@ function showNotification(title, body) {
 }
 
 function showReminderNotification() {
+  const now = Date.now();
+
+  // 打开软件后 5 分钟内不弹窗
+  if (now - appStartTime < 5 * 60 * 1000) return;
+
+  // 正在学习中不弹窗
+  if (isStudying) return;
+
+  // 上次弹窗后 30 分钟内不重复弹窗
+  if (lastReminderTime && now - lastReminderTime < 30 * 60 * 1000) return;
+
   loadData().then(data => {
     const settings = data.settings || {};
     const stats = data.stats || {};
@@ -789,9 +1097,9 @@ function showReminderNotification() {
     const today = new Date().toISOString().split('T')[0];
     if (stats.last_check_in === today) return;
 
-    const now = new Date();
-    const currentHour = now.getHours();
-    const currentMinute = now.getMinutes();
+    const now2 = new Date();
+    const currentHour = now2.getHours();
+    const currentMinute = now2.getMinutes();
 
     const [startHour, startMinute] = settings.remind_start.split(':').map(Number);
     const [endHour, endMinute] = settings.remind_end.split(':').map(Number);
@@ -806,13 +1114,15 @@ function showReminderNotification() {
       '学习提醒',
       `今日还未打卡学习！连续打卡 ${stats.streak_days || 0} 天，继续加油！`
     );
+    lastReminderTime = Date.now();
   });
 }
 
 function startReminderCheck() {
+  // 每 5 分钟检查一次，但实际弹窗间隔由 lastReminderTime 控制为 30 分钟
   reminderInterval = setInterval(() => {
     showReminderNotification();
-  }, 60 * 1000);
+  }, 5 * 60 * 1000);
 }
 
 function stopReminderCheck() {
@@ -824,6 +1134,27 @@ function stopReminderCheck() {
 
 // 注册渲染进程可调用的接口
 function registerIpcHandlers() {
+  ipcMain.handle('window:minimize', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.minimize();
+    return { success: true };
+  });
+
+  ipcMain.handle('window:toggle-maximize', () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return { isMaximized: false };
+    if (mainWindow.isMaximized()) mainWindow.unmaximize();
+    else mainWindow.maximize();
+    return { isMaximized: mainWindow.isMaximized() };
+  });
+
+  ipcMain.handle('window:get-state', () => ({
+    isMaximized: !!(mainWindow && !mainWindow.isDestroyed() && mainWindow.isMaximized())
+  }));
+
+  ipcMain.handle('window:close', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.close();
+    return { success: true };
+  });
+
   // 测试通知 / 自定义通知
   ipcMain.handle('app:test-notification', async (event, payload = {}) => {
     let title = payload.title;
@@ -844,8 +1175,19 @@ function registerIpcHandlers() {
   ipcMain.handle('app:get-system-settings', () => ({
     autoStart: app.getLoginItemSettings().openAtLogin,
     closeToTray,
+    windowMaterial,
+    transparentTitlebar: windowMaterial === 'transparent',
+    materialSupported: supportsWindowMaterial(),
     version: app.getVersion()
   }));
+
+  // 窗口透明材质：改完立即生效，不用重启
+  ipcMain.handle('app:set-window-material', async (event, material) => {
+    windowMaterial = ['default', 'acrylic', 'transparent'].includes(material) ? material : 'default';
+    const applied = applyWindowMaterial(windowMaterial);
+    await saveDataSafe({ window_material: windowMaterial });
+    return { success: true, windowMaterial, applied };
+  });
 
   // 开机自启动
   ipcMain.handle('app:set-auto-start', (event, enabled) => ({
@@ -872,6 +1214,12 @@ function registerIpcHandlers() {
     app.quit();
     return { success: true };
   });
+
+  // 标记学习状态：学习时抑制提醒弹窗
+  ipcMain.handle('app:set-studying', (event, studying) => {
+    isStudying = !!studying;
+    return { success: true };
+  });
 }
 
 const gotTheLock = app.requestSingleInstanceLock();
@@ -891,6 +1239,10 @@ if (!gotTheLock) {
       closeToTray = data.settings.close_to_tray;
     }
 
+    // 窗口材质要在建窗前读出来，材质只能随窗口一起创建
+    const savedMaterial = data.settings && data.settings.window_material;
+    windowMaterial = ['acrylic', 'transparent'].includes(savedMaterial) ? savedMaterial : 'default';
+
     // 移除 Electron 默认菜单栏，保持界面简洁
     Menu.setApplicationMenu(null);
 
@@ -898,6 +1250,7 @@ if (!gotTheLock) {
     createTray();
     registerIpcHandlers();
     createWindow();
+    appStartTime = Date.now();
     startReminderCheck();
   });
 }

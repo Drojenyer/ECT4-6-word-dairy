@@ -72,7 +72,11 @@ async function build() {
   await copyDir(runtime, target);
 
   console.log('2/4 重命名可执行文件…');
-  await fs.rename(path.join(target, 'electron.exe'), path.join(target, `${APP_NAME}.exe`));
+  const appExe = path.join(target, `${APP_NAME}.exe`);
+  await fs.rename(path.join(target, 'electron.exe'), appExe);
+  console.log('嵌入应用图标…');
+  const { rcedit } = await import('rcedit');
+  await rcedit(appExe, { icon: path.join(ROOT, 'assets', 'icon.ico') });
   // 只有缺少 app 目录时才会回退到它，留着会多一份无关内容
   await fs.rm(path.join(target, 'resources', 'default_app.asar'), { force: true });
 

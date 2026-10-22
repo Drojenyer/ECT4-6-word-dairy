@@ -5,6 +5,7 @@ const API_BASE_URL = window.location.protocol === 'file:'
   : '/api';
 
 class ApiClient {
+  usesLocalTranslationCredentials = true;
   async request(method, endpoint, data) {
     const options = { method };
     if (data !== undefined) {
@@ -40,6 +41,17 @@ class ApiClient {
     return this.get('/stats');
   }
 
+  async translateText(payload) {
+    const response = await fetch(`${API_BASE_URL}/translate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || '翻译请求失败');
+    return result;
+  }
+
   async markMastered(word) {
     return this.post('/stats/mastered', { word });
   }
@@ -58,6 +70,11 @@ class ApiClient {
 
   async recordResult(correct, wrong) {
     return this.post('/stats/result', { correct, wrong });
+  }
+
+  // 学习时长按秒分批上报，后端按日期累加
+  async addStudyTime(seconds) {
+    return this.post('/stats/study', { seconds });
   }
 
   async getSession() {
@@ -80,12 +97,12 @@ class ApiClient {
     return this.post('/settings', settings);
   }
 
-  async getCET4Vocab() {
-    return this.get('/vocab/cet4');
+  async getCET4Vocab(limit, excludeMastered = true) {
+    return this.get(`/vocab/cet4?limit=${encodeURIComponent(limit)}&exclude_mastered=${excludeMastered}`);
   }
 
-  async getCET6Vocab() {
-    return this.get('/vocab/cet6');
+  async getCET6Vocab(limit, excludeMastered = true) {
+    return this.get(`/vocab/cet6?limit=${encodeURIComponent(limit)}&exclude_mastered=${excludeMastered}`);
   }
 
   // 高频词表是静态数据，拉一次就缓存住
@@ -104,6 +121,14 @@ class ApiClient {
     return this._phoneticMap;
   }
 
+  // 词性表同样是静态数据，用于给错词/旧会话补齐词性
+  async getPosMap() {
+    if (!this._posMap) {
+      this._posMap = await this.get('/vocab/pos');
+    }
+    return this._posMap;
+  }
+
   async checkIn() {
     return this.post('/checkin', {});
   }
@@ -113,6 +138,30 @@ class ApiClient {
   }
 
   /* ---------- 桌面端系统能力（通过主进程 IPC 调用） ---------- */
+  isDesktopWindow() {
+    return process.platform === 'win32';
+  }
+
+  minimizeWindow() {
+    return this.ipc.invoke('window:minimize');
+  }
+
+  toggleMaximizeWindow() {
+    return this.ipc.invoke('window:toggle-maximize');
+  }
+
+  closeWindow() {
+    return this.ipc.invoke('window:close');
+  }
+
+  getWindowState() {
+    return this.ipc.invoke('window:get-state');
+  }
+
+  onWindowMaximizeChange(listener) {
+    this.ipc.on('window:maximize-change', (_event, isMaximized) => listener(isMaximized));
+  }
+
   get ipc() {
     if (!this._ipc) {
       this._ipc = require('electron').ipcRenderer;
@@ -132,6 +181,10 @@ class ApiClient {
     return this.ipc.invoke('app:set-close-to-tray', enabled);
   }
 
+  setWindowMaterial(material) {
+    return this.ipc.invoke('app:set-window-material', material);
+  }
+
   testNotification() {
     return this.ipc.invoke('app:test-notification');
   }
@@ -142,6 +195,10 @@ class ApiClient {
 
   quitApp() {
     return this.ipc.invoke('app:quit');
+  }
+
+  setStudying(studying) {
+    return this.ipc.invoke('app:set-studying', studying);
   }
 }
 

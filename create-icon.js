@@ -72,15 +72,15 @@ function renderIcon(size) {
   const k = W / 256;
   const canvas = Buffer.alloc(W * W * 4);
 
-  const setPixel = (x, y, r, g, b) => {
+  const setPixel = (x, y, r, g, b, a = 255) => {
     const i = (y * W + x) * 4;
     canvas[i] = r;
     canvas[i + 1] = g;
     canvas[i + 2] = b;
-    canvas[i + 3] = 255;
+    canvas[i + 3] = a;
   };
 
-  // 圆角矩形 + 蓝色渐变底
+  // Rounded blue background.
   const x0 = 6 * k;
   const y0 = 6 * k;
   const x1 = 250 * k;
@@ -109,33 +109,52 @@ function renderIcon(size) {
     }
   }
 
-  // 白色 V 字形
-  const thickness = 30 * k;
-  const half = thickness / 2;
-  const ax = 84 * k;
-  const ay = 76 * k;
-  const bx = 128 * k;
-  const by = 182 * k;
-  const cx = 172 * k;
-  const cy = 76 * k;
-
-  const minX = Math.max(0, Math.floor(ax - half));
-  const maxX = Math.min(W - 1, Math.ceil(cx + half));
-  const minY = Math.max(0, Math.floor(ay - half));
-  const maxY = Math.min(W - 1, Math.ceil(by + half));
-
-  for (let y = minY; y <= maxY; y++) {
-    for (let x = minX; x <= maxX; x++) {
-      const d = Math.min(
-        distToSegment(x, y, ax, ay, bx, by),
-        distToSegment(x, y, bx, by, cx, cy)
-      );
-      if (d <= half) {
-        setPixel(x, y, 255, 255, 255);
+  const fillPolygon = (points, color) => {
+    const scaled = points.map(([x, y]) => [x * k, y * k]);
+    const minX = Math.max(0, Math.floor(Math.min(...scaled.map(p => p[0]))));
+    const maxX = Math.min(W - 1, Math.ceil(Math.max(...scaled.map(p => p[0]))));
+    const minY = Math.max(0, Math.floor(Math.min(...scaled.map(p => p[1]))));
+    const maxY = Math.min(W - 1, Math.ceil(Math.max(...scaled.map(p => p[1]))));
+    for (let y = minY; y <= maxY; y++) {
+      for (let x = minX; x <= maxX; x++) {
+        let inside = false;
+        for (let i = 0, j = scaled.length - 1; i < scaled.length; j = i++) {
+          const [xi, yi] = scaled[i];
+          const [xj, yj] = scaled[j];
+          if (((yi > y) !== (yj > y)) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) {
+            inside = !inside;
+          }
+        }
+        if (inside) setPixel(x, y, ...color);
       }
     }
-  }
+  };
 
+  const drawLine = (x1, y1, x2, y2, width, color) => {
+    const ax = x1 * k;
+    const ay = y1 * k;
+    const bx = x2 * k;
+    const by = y2 * k;
+    const half = width * k / 2;
+    const minX = Math.max(0, Math.floor(Math.min(ax, bx) - half));
+    const maxX = Math.min(W - 1, Math.ceil(Math.max(ax, bx) + half));
+    const minY = Math.max(0, Math.floor(Math.min(ay, by) - half));
+    const maxY = Math.min(W - 1, Math.ceil(Math.max(ay, by) + half));
+    for (let y = minY; y <= maxY; y++) {
+      for (let x = minX; x <= maxX; x++) {
+        if (distToSegment(x, y, ax, ay, bx, by) <= half) setPixel(x, y, ...color);
+      }
+    }
+  };
+
+  // Minimal open book with a clear center fold and a few page lines.
+  fillPolygon([[42, 75], [75, 64], [115, 76], [115, 180], [76, 166], [42, 174]], [255, 255, 255]);
+  fillPolygon([[141, 76], [181, 64], [214, 75], [214, 174], [180, 166], [141, 180]], [238, 247, 255]);
+  drawLine(128, 77, 128, 184, 7, [17, 79, 135]);
+  for (const y of [101, 121, 141]) {
+    drawLine(62, y, 101, y + 5, 4, [95, 158, 210]);
+    drawLine(155, y + 5, 194, y, 4, [95, 158, 210]);
+  }
   // 降采样，得到抗锯齿效果
   const out = Buffer.alloc(size * size * 4);
   const samples = SS * SS;
@@ -227,7 +246,25 @@ try {
     })))
   );
 
-  console.log('图标生成完成: assets/icon.png, assets/tray.png, assets/icon.ico');
+  // Keep the Android launcher PNGs in step with the desktop artwork.
+  const androidRes = path.join(__dirname, 'mobile', 'android', 'app', 'src', 'main', 'res');
+  const densities = [
+    ['mipmap-mdpi', 48],
+    ['mipmap-hdpi', 72],
+    ['mipmap-xhdpi', 96],
+    ['mipmap-xxhdpi', 144],
+    ['mipmap-xxxhdpi', 192]
+  ];
+  for (const [folder, size] of densities) {
+    for (const name of ['ic_launcher.png', 'ic_launcher_round.png']) {
+      fs.writeFileSync(
+        path.join(androidRes, folder, name),
+        encodePNG(size, size, renderIcon(size))
+      );
+    }
+  }
+
+  console.log('图标生成完成: 桌面端 PNG/ICO、托盘图标和 Android 启动器图标');
 } catch (error) {
   console.error('生成图标失败:', error);
   process.exit(1);

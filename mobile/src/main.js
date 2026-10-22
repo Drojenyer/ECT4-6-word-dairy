@@ -12,6 +12,7 @@
 // 平台实现：window.api（IndexedDB）、window.notifications（Capacitor 本地通知）
 import './platform/api.js';
 import './platform/notifications.js';
+import '../../src/js/translate.js';
 
 // 共用页面逻辑
 import '../../src/js/theme.js';

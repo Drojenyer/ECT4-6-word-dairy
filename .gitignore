@@ -8,6 +8,7 @@ out/
 
 # 便携版运行时数据（跟着程序文件夹走，不进版本库）
 user-data/
+baidu-translate.local.json
 
 # 运行日志
 *.log

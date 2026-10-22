@@ -1,0 +1,18 @@
+.translate-container { max-width: 1120px; margin: 0 auto; }
+.translate-container h2 { font-size: 28px; color: var(--text-primary); margin-bottom: 8px; }
+.translate-intro { color: var(--text-secondary); margin-bottom: 24px; line-height: 1.6; }
+.translate-config, .translate-panel { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px; box-shadow: var(--shadow); }
+.translate-config[hidden] { display: none; }
+.translate-config { display: grid; grid-template-columns: auto minmax(160px, 1fr); align-items: center; gap: 10px 14px; margin-bottom: 18px; }
+.translate-config label, .translate-panel label { color: var(--text-primary); font-weight: 600; }
+.translate-config input, .translate-config select, .translate-panel textarea { color: var(--text-primary); background: var(--bg-secondary); border: 1px solid var(--border); border-radius: var(--radius); padding: 11px 12px; font: inherit; }
+.translate-config input:focus, .translate-config select:focus, .translate-panel textarea:focus { outline: 2px solid var(--primary); outline-offset: 1px; }
+.translate-config p { grid-column: 1 / -1; color: var(--text-tertiary); font-size: 13px; }
+.translate-panels { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.translate-panel { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.translate-panel textarea, .translate-output { min-height: 240px; width: 100%; resize: vertical; line-height: 1.7; font-size: 17px; }
+.translate-output { white-space: pre-wrap; overflow-wrap: anywhere; padding: 12px; background: var(--bg-secondary); border: 1px solid var(--border-light); border-radius: var(--radius); }
+.translate-panel-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--text-secondary); font-size: 13px; }
+.translate-actions { display: flex; gap: 8px; }
+.translate-actions [hidden] { display: none !important; }
+@media (max-width: 840px) { .translate-config { grid-template-columns: 1fr; } .translate-panels { grid-template-columns: 1fr; } .translate-panel textarea, .translate-output { min-height: 170px; } }

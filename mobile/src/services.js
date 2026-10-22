@@ -14,6 +14,7 @@ export const DEFAULT_STATS = {
   total_quizzes: 0,
   correct_count: 0,
   wrong_count: 0,
+  study_time: {},
   mastered_words: []
 };
 
@@ -35,7 +36,8 @@ export const DEFAULT_SETTINGS = {
   theme_accent: 'blue',
   theme_background: 'gray',
   theme_radius: 'standard',
-  theme_density: 'standard'
+  theme_density: 'standard',
+  window_material: 'default'
 };
 
 // 桌面端遗留的测验模式命名
@@ -93,6 +95,10 @@ export function normalizeWrongWord(item) {
     stage,
     wrong_count: Number(item.wrong_count) || 1,
     review_count: Number(item.review_count) || 0,
+    intensive: typeof item.intensive === 'boolean'
+      ? item.intensive
+      : (Number(item.wrong_count) || 1) >= 2 && !item.graduated,
+    intensive_correct: Math.max(0, Number(item.intensive_correct) || 0),
     last_review: item.last_review || null,
     next_review: item.next_review || nextReviewDate(stage, addedAt),
     graduated: typeof item.graduated === 'boolean'
@@ -120,6 +126,18 @@ export async function getStats() {
   const wrongWords = await db.mistakes.toArray();
 
   return Object.assign({}, stats, { wrong_words: wrongWords.map(normalizeWrongWord).filter(Boolean) });
+}
+
+export async function addStudyTime(seconds) {
+  const amount = Math.max(0, Math.round(Number(seconds) || 0));
+  if (!amount) return;
+  await db.transaction('rw', db.stats, async () => {
+    const stats = await readSingleton(db.stats, DEFAULT_STATS);
+    const date = todayString();
+    stats.study_time = stats.study_time || {};
+    stats.study_time[date] = (Number(stats.study_time[date]) || 0) + amount;
+    await writeSingleton(db.stats, stats);
+  });
 }
 
 export async function markMastered(word) {
@@ -152,6 +170,8 @@ export async function addWrongWord(word) {
     if (existing) {
       await db.mistakes.put(Object.assign({}, existing, {
         wrong_count: (existing.wrong_count || 1) + 1,
+        intensive: true,
+        intensive_correct: 0,
         stage: 0,
         graduated: false,
         next_review: nextReviewDate(0, todayString())
@@ -191,6 +211,10 @@ export async function reviewWrongWord(word, correct, hinted) {
     item.review_count = (item.review_count || 0) + 1;
 
     if (correct && !hinted) {
+      if (item.intensive) {
+        item.intensive_correct = (item.intensive_correct || 0) + 1;
+        if (item.intensive_correct >= 3) item.intensive = false;
+      }
       item.stage = (item.stage || 0) + 1;
       item.next_review = nextReviewDate(item.stage, today);
       item.graduated = item.stage >= REVIEW_INTERVALS.length;

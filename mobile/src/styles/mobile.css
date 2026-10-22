@@ -105,7 +105,7 @@ body {
   padding: 8px 4px;
   min-height: var(--mobile-tabbar);
   border-radius: 0;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 500;
   background: transparent;
 }

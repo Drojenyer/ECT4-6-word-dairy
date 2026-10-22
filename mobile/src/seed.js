@@ -58,11 +58,13 @@ function normalizeVocab(items, level) {
     const meanings = (item.translations || [])
       .map(t => String((t && t.translation) || '').replace(/\s+/g, ' ').trim())
       .filter(Boolean);
+    const parts = (item.translations || []).map(t => t && t.type).filter(Boolean);
 
     const phrases = (item.phrases || []).filter(Boolean);
     const existing = merged.get(item.word);
 
     if (existing) {
+      parts.forEach(part => existing.parts.add(part));
       meanings.forEach(meaning => {
         if (!existing.meanings.includes(meaning)) {
           existing.meanings.push(meaning);
@@ -84,6 +86,7 @@ function normalizeVocab(items, level) {
     merged.set(item.word, {
       word: item.word,
       meanings: [...new Set(meanings)],
+      parts: new Set(parts),
       phrases: [...phrases]
     });
   });
@@ -91,6 +94,7 @@ function normalizeVocab(items, level) {
   return [...merged.values()].map(row => ({
     word: row.word,
     translation: row.meanings.join('；'),
+    pos: [...row.parts].join('/'),
     level,
     phrases: row.phrases
   }));
@@ -150,7 +154,8 @@ export async function seedIfNeeded(onProgress = () => {}) {
   const manifest = await fetchJson('manifest.json');
   const stored = await db.meta.get(META_KEYS.SEED);
 
-  if (stored && stored.version === manifest.version) {
+  const seedVersion = `${manifest.version}-pos2`;
+  if (stored && stored.version === seedVersion) {
     return { seeded: false, version: manifest.version };
   }
 
@@ -179,7 +184,7 @@ export async function seedIfNeeded(onProgress = () => {}) {
 
   await db.meta.put({
     key: META_KEYS.SEED,
-    version: manifest.version,
+    version: seedVersion,
     seeded_at: new Date().toISOString()
   });
 

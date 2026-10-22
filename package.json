@@ -25,7 +25,8 @@
   "devDependencies": {
     "electron": "^27.0.0",
     "electron-builder": "^24.6.0",
-    "electron-packager": "^17.1.2"
+    "electron-packager": "^17.1.2",
+    "rcedit": "^5.0.2"
   },
   "dependencies": {
     "express": "^4.18.2"

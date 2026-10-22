@@ -12,6 +12,8 @@ class Quiz {
     this.reviewMode = false;
     this.spellingEnabled = true;
     this.spellingHints = 0;
+    // 本局复习达标（走完整条记忆曲线）而移出错题本的词数
+    this.graduatedCount = 0;
   }
 
   // 开始一局全新的测验
@@ -23,6 +25,7 @@ class Quiz {
     this.correctAnswers = 0;
     this.wrongAnswers = 0;
     this.reviewMode = false;
+    this.graduatedCount = 0;
 
     await this.loadVocabulary();
     this.words = this.applySpellingQuota(await this.enrichWords(this.words));
@@ -58,13 +61,20 @@ class Quiz {
     this.correctAnswers = 0;
     this.wrongAnswers = 0;
     this.reviewMode = true;
+    this.graduatedCount = 0;
 
     const stats = await api.getStats();
     const all = (stats.wrong_words || []).filter(item => item.word);
     const due = all.filter(item => this.isReviewDue(item));
 
     // 有到期的错词时只复习到期的，否则把全部错词过一遍
-    this.words = this.shuffleArray(await this.enrichWords(due.length > 0 ? due : all));
+    const reviewWords = await this.enrichWords(due.length > 0 ? due : all);
+    // Repeatedly missed words appear up to three times in one review round.
+    const queue = reviewWords.flatMap(item => {
+      const remaining = item.intensive ? Math.max(1, 3 - (item.intensive_correct || 0)) : 1;
+      return Array.from({ length: remaining }, () => ({ ...item }));
+    });
+    this.words = this.shuffleArray(queue);
     this.updateModeBadge();
 
     if (this.words.length === 0) {
@@ -88,14 +98,26 @@ class Quiz {
 
     const phoneticMap = await this.safePhoneticMap();
     const freqMap = await this.safeHighFreqMap();
+    const posMap = await this.safePosMap();
 
     return words.map(item => {
       const key = String(item.word).trim().toLowerCase();
       return Object.assign({}, item, {
         phonetic: phoneticMap[key] || item.phonetic || '',
+        pos: posMap[key] || item.pos || '',
         highFreq: freqMap[key] || 0
       });
     });
+  }
+
+  // 错词与旧会话里可能没有词性，读不到词性表时降级为不显示
+  async safePosMap() {
+    try {
+      return await api.getPosMap();
+    } catch (error) {
+      console.error('加载词性表失败:', error);
+      return {};
+    }
   }
 
   // 词表读不到时降级：不给音标
@@ -126,6 +148,12 @@ class Quiz {
   phoneticHtml(item) {
     const text = item && item.phonetic ? String(item.phonetic).trim() : '';
     return text ? `<span class="phonetic">/${text}/</span>` : '';
+  }
+
+  // 词性标签：adv / v / n 等
+  posHtml(item) {
+    const pos = item && item.pos ? String(item.pos).trim() : '';
+    return pos ? `<span class="word-pos">${pos}</span>` : '';
   }
 
   /**
@@ -204,16 +232,18 @@ class Quiz {
 
   async loadVocabulary() {
     try {
+      const desiredCount = Number(this.settings.daily_count) || 100;
+      const requestCount = Math.min(Math.max(10, desiredCount), 100);
       let allWords = [];
       const source = this.settings.vocab_source || 'all';
 
       if (source === 'all' || source === 'cet4') {
-        const cet4Data = await api.getCET4Vocab();
+        const cet4Data = await api.getCET4Vocab(requestCount, this.settings.exclude_mastered !== false);
         allWords = allWords.concat(cet4Data);
       }
 
       if (source === 'all' || source === 'cet6') {
-        const cet6Data = await api.getCET6Vocab();
+        const cet6Data = await api.getCET6Vocab(requestCount, this.settings.exclude_mastered !== false);
         allWords = allWords.concat(cet6Data);
       }
 
@@ -230,7 +260,6 @@ class Quiz {
         filteredWords = allWords;
       }
 
-      const desiredCount = Number(this.settings.daily_count) || 100;
       const quizCount = Math.min(Math.max(10, desiredCount), filteredWords.length);
       this.words = this.shuffleArray(filteredWords).slice(0, quizCount);
     } catch (error) {
@@ -275,6 +304,7 @@ class Quiz {
     this.isFlipped = false;
     this.isAnswered = false;
     this.spellingHints = 0;
+    this.phoneticVisible = false;
     this.updateProgress();
     this.updateModeBadge();
 
@@ -289,6 +319,14 @@ class Quiz {
     } else {
       learnArea.innerHTML = this.renderMultipleChoice();
       this.setupMultipleChoiceEvents();
+    }
+
+    if (this.reviewMode && this.currentWord.intensive) {
+      const question = learnArea.querySelector('.quiz-question, .flashcard-front');
+      if (question) {
+        question.insertAdjacentHTML('afterbegin',
+          `<span class="review-intensive-badge">重点复习 · 已答对 ${this.currentWord.intensive_correct || 0}/3 次</span>`);
+      }
     }
   }
 
@@ -314,16 +352,20 @@ class Quiz {
   renderSpelling() {
     const word = this.currentWord;
     const phonetic = this.phoneticHtml(word);
-    // 中文释义常有一词多义，音标用来确认考的是哪个词
-    const phoneticLine = phonetic ? `<div class="spelling-phonetic">${phonetic}</div>` : '';
+    const posHtml = this.posHtml(word);
+    // 音标只在用户主动展开时显示，词性始终可见。
+    const phoneticLine = phonetic || posHtml
+      ? `<div class="spelling-phonetic">${posHtml}${phonetic ? `<span id="spelling-phonetic-value" hidden>${phonetic}</span>` : ''}</div>`
+      : '';
 
     return `
       <div class="spelling-container">
         <div class="quiz-question">
-          <div class="spelling-badge">🔥 高频词 · 真题出现 ${word.highFreq} 次</div>
+          <div class="spelling-badge"><i class="fa-solid fa-fire"></i> 高频词 · 真题出现 ${word.highFreq} 次</div>
           <div class="spelling-translation">${word.translation}</div>
           ${phoneticLine}
-          <div class="question-hint">请根据释义和音标写出英文单词</div>
+          ${phonetic ? '<button type="button" class="spelling-phonetic-toggle" id="btn-spelling-phonetic" aria-expanded="false">显示音标</button>' : ''}
+          <div class="question-hint">请根据释义写出英文单词</div>
         </div>
 
         <div class="spelling-slots" id="spelling-slots"></div>
@@ -334,14 +376,25 @@ class Quiz {
 
         <div class="spelling-feedback hidden" id="spelling-feedback"></div>
 
+        <div class="spelling-practice hidden" id="spelling-practice">
+          <div class="spelling-practice-title">
+            <span><i class="fa-solid fa-pen"></i></span>
+            <span>默写练习栏</span>
+          </div>
+          <input class="spelling-practice-input" id="spelling-practice-input" type="text"
+                 autocomplete="off" autocorrect="off" autocapitalize="off"
+                 spellcheck="false" placeholder="对照上面的正确拼写，多写几遍加深印象">
+          <div class="spelling-practice-note">仅作练习，不计入成绩</div>
+        </div>
+
         <div class="spelling-actions">
           <button class="forgot-btn" id="btn-spelling-hint">
-            <span>💡</span>
+            <span><i class="fa-solid fa-lightbulb"></i></span>
             <span>提示字母</span>
           </button>
           <button class="btn btn-primary" id="btn-spelling-submit">提交</button>
           <button class="forgot-btn" id="btn-spelling-give-up">
-            <span>🤔</span>
+            <span><i class="fa-solid fa-circle-question"></i></span>
             <span>我忘记了</span>
           </button>
         </div>
@@ -370,6 +423,15 @@ class Quiz {
   setupSpellingEvents() {
     const input = document.getElementById('spelling-input');
     this.renderSpellingSlots();
+    const phoneticButton = document.getElementById('btn-spelling-phonetic');
+    if (phoneticButton) {
+      phoneticButton.addEventListener('click', () => {
+        this.phoneticVisible = !this.phoneticVisible;
+        document.getElementById('spelling-phonetic-value').hidden = !this.phoneticVisible;
+        phoneticButton.textContent = this.phoneticVisible ? '隐藏音标' : '显示音标';
+        phoneticButton.setAttribute('aria-expanded', String(this.phoneticVisible));
+      });
+    }
 
     input.addEventListener('keydown', (event) => {
       // 中文输入法组词期间的回车不算提交
@@ -406,7 +468,7 @@ class Quiz {
 
     const hintBtn = document.getElementById('btn-spelling-hint');
     if (hintBtn) {
-      hintBtn.innerHTML = `<span>💡</span><span>提示字母（已提示 ${this.spellingHints} 个）</span>`;
+      hintBtn.innerHTML = `<span><i class="fa-solid fa-lightbulb"></i></span><span>提示字母（已提示 ${this.spellingHints} 个）</span>`;
     }
 
     const input = document.getElementById('spelling-input');
@@ -451,14 +513,17 @@ class Quiz {
 
     const usedHint = this.spellingHints > 0;
     this.correctAnswers++;
-    await this.applyAnswerResult(true, usedHint);
+    const graduated = await this.applyAnswerResult(true, usedHint);
 
-    this.showSpellingFeedback(
-      usedHint
-        ? `✓ 拼写正确，不过借助了 ${this.spellingHints} 个字母提示，这次不算真正掌握，很快会再考你一次`
-        : '✓ 拼写正确',
-      usedHint ? 'info' : 'correct'
-    );
+    // 复习达标的词已被移出错题本，提示里说明一下
+    let feedback = '✓ 拼写正确';
+    if (graduated) {
+      feedback = '✓ 拼写正确，这个词已复习达标，已从错题本移除';
+    } else if (usedHint) {
+      feedback = `✓ 拼写正确，不过借助了 ${this.spellingHints} 个字母提示，这次不算真正掌握，很快会再考你一次`;
+    }
+
+    this.showSpellingFeedback(feedback, usedHint && !graduated ? 'info' : 'correct');
     this.lockAnswerControls();
     this.updateProgressBar();
 
@@ -473,8 +538,20 @@ class Quiz {
 
     this.showSpellingFeedback(message, 'wrong');
     this.lockAnswerControls();
+    this.showPracticeBar();
     this.updateProgressBar();
     this.showDefinition();
+  }
+
+  /**
+   * 答错后给出默写练习栏，对照正确拼写多写几遍。
+   * 纯粹是练习，不校验、不计分，也不参与复习计划，所以不挂任何事件。
+   */
+  showPracticeBar() {
+    const bar = document.getElementById('spelling-practice');
+    if (bar) {
+      bar.classList.remove('hidden');
+    }
   }
 
   async handleSpellingGiveUp() {
@@ -504,14 +581,14 @@ class Quiz {
           <div class="flashcard-inner" id="flashcard-inner">
             <div class="flashcard-front">
               <div class="word-level">(${word.level})</div>
-              <div class="word-main">${word.word}${this.phoneticHtml(word)}</div>
+              <div class="word-main">${word.word}${this.posHtml(word)}${this.phoneticHtml(word)}</div>
               <div class="flashcard-hint">
-                <span class="flashcard-hint-icon">👆</span>
+                <span class="flashcard-hint-icon"><i class="fa-solid fa-hand-pointer"></i></span>
                 <span>点击卡片查看释义</span>
               </div>
             </div>
             <div class="flashcard-back">
-              <div class="word-main" style="color: var(--primary);">${word.word}${this.phoneticHtml(word)}</div>
+              <div class="word-main" style="color: var(--primary);">${word.word}${this.posHtml(word)}${this.phoneticHtml(word)}</div>
               <div class="translation-main">${word.translation}</div>
               ${phrasesHtml}
             </div>
@@ -519,11 +596,11 @@ class Quiz {
         </div>
         <div class="flashcard-actions" id="flashcard-actions" style="display: none;">
           <button class="action-btn known" id="btn-known">
-            <span>✅</span>
+            <span><i class="fa-solid fa-check"></i></span>
             <span>认识</span>
           </button>
           <button class="action-btn unknown" id="btn-unknown">
-            <span>❌</span>
+            <span><i class="fa-solid fa-xmark"></i></span>
             <span>不认识</span>
           </button>
         </div>
@@ -597,15 +674,42 @@ class Quiz {
    * 错词测试：只更新该词的艾宾浩斯复习阶段。
    * hinted 表示借助了字母提示 —— 默写靠提示拼出来的词不算真正掌握，
    * 既不标记为已掌握、也不推进复习阶段，之后还会再考一次。
+   *
+   * 返回值表示这个词是否刚好复习达标（已自动移出错题本）。
    */
   async applyAnswerResult(isCorrect, hinted) {
     if (this.reviewMode) {
       try {
-        await api.reviewWrongWord(this.currentWord.word, isCorrect, hinted);
+        const result = await api.reviewWrongWord(this.currentWord.word, isCorrect, hinted);
+        // 桌面端是 { item }，移动端直接返回词条
+        const item = result && (result.item || result);
+
+        if (item) {
+          this.words.forEach((entry, index) => {
+            if (index > this.currentIndex && entry.word === this.currentWord.word) {
+              entry.intensive = item.intensive;
+              entry.intensive_correct = item.intensive_correct;
+            }
+          });
+        }
+
+        if (item && this.currentWord.intensive && !item.intensive) {
+          // The third unhinted correct answer clears the emphasis and any
+          // extra appearances that were queued for this review round.
+          this.words = this.words.filter((entry, index) =>
+            index <= this.currentIndex || entry.word !== this.currentWord.word);
+        }
+
+        // 走完整条记忆曲线即视为掌握，自动从错题本移除
+        if (item && item.graduated) {
+          await api.removeWrongWord(this.currentWord.word);
+          this.graduatedCount++;
+          return true;
+        }
       } catch (error) {
         console.error('更新复习计划失败:', error);
       }
-      return;
+      return false;
     }
 
     if (!isCorrect) {
@@ -613,6 +717,8 @@ class Quiz {
     } else if (!hinted) {
       await this.markAsMastered();
     }
+
+    return false;
   }
 
   // 进入下一题，并同步保存进度
@@ -632,7 +738,7 @@ class Quiz {
     if (this.quizMode === 'word_to_translation') {
       questionHtml = `
         <div class="quiz-question">
-          <div class="question-text">${word.word}${this.phoneticHtml(word)}</div>
+          <div class="question-text">${word.word}${this.posHtml(word)}${this.phoneticHtml(word)}</div>
           <div class="question-hint">请选择正确的中文释义</div>
         </div>
       `;
@@ -667,7 +773,7 @@ class Quiz {
         </div>
         <div class="quiz-footer">
           <button class="forgot-btn" id="btn-forgot">
-            <span>🤔</span>
+            <span><i class="fa-solid fa-circle-question"></i></span>
             <span>我忘记了</span>
           </button>
         </div>
@@ -703,11 +809,13 @@ class Quiz {
   getDistractors(currentWord, count) {
     const sameLevel = [];
     const others = [];
+    const seen = new Set([currentWord.word]);
 
     this.words.forEach(item => {
-      if (item.word === currentWord.word) {
+      if (seen.has(item.word)) {
         return;
       }
+      seen.add(item.word);
       if (item.level === currentWord.level) {
         sameLevel.push(item);
       } else {
@@ -783,6 +891,7 @@ class Quiz {
     panel.innerHTML = `
       <div class="definition-head">
         <span class="definition-word">${word.word}</span>
+        ${this.posHtml(word)}
         ${this.phoneticHtml(word)}
         <span class="definition-level">${word.level}</span>
       </div>
@@ -860,6 +969,7 @@ class Quiz {
       await api.addWrongWord({
         word: this.currentWord.word,
         translation: this.currentWord.translation,
+        pos: this.currentWord.pos || '',
         level: this.currentWord.level,
         phrases: this.currentWord.phrases || []
       });
@@ -879,34 +989,49 @@ class Quiz {
       console.error('更新统计数据失败:', error);
     }
 
+    // 打卡在学习任务完成之后才计入，而不是点进学习就算
+    let checkInStats = null;
+
+    if (!this.reviewMode && window.ui) {
+      checkInStats = await window.ui.performCheckIn();
+    }
+
     const accuracy = this.correctAnswers + this.wrongAnswers > 0
       ? Math.round((this.correctAnswers / (this.correctAnswers + this.wrongAnswers)) * 100)
       : 0;
 
     const learnArea = document.getElementById('learn-area');
-    const icon = accuracy >= 80 ? '🎉' : accuracy >= 60 ? '👍' : '💪';
+    const icon = accuracy >= 80 ? '<i class="fa-solid fa-trophy"></i>' : accuracy >= 60 ? '<i class="fa-solid fa-thumbs-up"></i>' : '<i class="fa-solid fa-hand-fist"></i>';
     const title = this.reviewMode ? '错词复习完成！' : '测验完成！';
 
     // 错词测试结束后回到错题本，方便查看新的复习计划
     const backButton = this.reviewMode
       ? `<button class="btn btn-primary btn-lg" onclick="ui.navigateTo('mistakes')">
-           <span>📝</span>
+           <span><i class="fa-solid fa-pen-to-square"></i></span>
            <span>返回错题本</span>
          </button>`
       : `<button class="btn btn-primary btn-lg" onclick="ui.navigateTo('home')">
-           <span>🏠</span>
+           <span><i class="fa-solid fa-house"></i></span>
            <span>返回首页</span>
          </button>`;
 
     const retryButton = this.reviewMode
       ? `<button class="btn btn-secondary btn-lg" onclick="quiz.startWrongQuiz('${this.quizMode}', quiz.settings)">
-           <span>🔄</span>
+           <span><i class="fa-solid fa-rotate-right"></i></span>
            <span>再测一轮</span>
          </button>`
       : `<button class="btn btn-secondary btn-lg" onclick="quiz.startQuiz('${this.quizMode}', quiz.settings)">
-           <span>🔄</span>
+           <span><i class="fa-solid fa-rotate-right"></i></span>
            <span>再来一局</span>
          </button>`;
+
+    const resultTip = this.reviewMode
+      ? (this.graduatedCount > 0
+        ? `<p class="result-tip result-checkin"><i class="fa-solid fa-check"></i> ${this.graduatedCount} 个词复习达标，已自动移出错题本</p>`
+        : '<p class="result-tip">答对的词已按艾宾浩斯曲线安排下次复习时间</p>')
+      : (checkInStats
+        ? `<p class="result-tip result-checkin"><i class="fa-solid fa-check"></i> 今日打卡成功，连续打卡 ${checkInStats.streak_days || 1} 天</p>`
+        : '<p class="result-tip">本局已完成</p>');
 
     learnArea.innerHTML = `
       <div class="quiz-result">
@@ -930,7 +1055,7 @@ class Quiz {
             <div class="result-stat-label">正确率</div>
           </div>
         </div>
-        ${this.reviewMode ? '<p class="result-tip">答对的词已按艾宾浩斯曲线安排下次复习时间</p>' : ''}
+        ${resultTip}
         <div style="margin-top: 32px;">
           ${backButton}
           ${retryButton}

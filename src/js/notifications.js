@@ -22,7 +22,7 @@ class Notifications {
     }
 
     // 复用主进程通知能力
-    api.ipc.invoke('app:test-notification', { title: '🎉 学习成就', body: message });
+    api.ipc.invoke('app:test-notification', { title: '学习成就', body: message });
   }
 }
 

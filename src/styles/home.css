@@ -36,22 +36,15 @@
     border-radius: var(--radius-xl);
     color: var(--text-inverse);
     box-shadow: var(--shadow-lg);
-    transition: transform 0.28s var(--ease-out), box-shadow 0.28s var(--ease-out);
+    transition: box-shadow 0.28s var(--ease-out);
 }
 
 .status-card:hover {
-    transform: translateY(-3px);
     box-shadow: var(--shadow-xl);
 }
 
 .status-icon {
     font-size: 40px;
-    animation: bounce 2.4s ease-in-out infinite;
-}
-
-@keyframes bounce {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-8px); }
 }
 
 .status-content h3 {

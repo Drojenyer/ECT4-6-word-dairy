@@ -10,15 +10,34 @@
     <link rel="stylesheet" href="styles/stats.css">
     <link rel="stylesheet" href="styles/mistakes.css">
     <link rel="stylesheet" href="styles/settings.css">
+    <link rel="stylesheet" href="styles/translate.css">
+    <link rel="stylesheet" href="styles/fontawesome/css/all.min.css">
 </head>
 <body>
+    <div class="desktop-titlebar" id="desktop-titlebar" hidden>
+        <div class="desktop-titlebar-drag" id="desktop-titlebar-drag">
+            <span class="desktop-titlebar-icon"><i class="fa-solid fa-book-open-reader"></i></span>
+            <span class="desktop-titlebar-title">英语四六级词汇学习平台</span>
+        </div>
+        <div class="window-controls">
+            <button class="window-control" id="window-minimize" type="button" title="最小化" aria-label="最小化">
+                <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6h8"/></svg>
+            </button>
+            <button class="window-control" id="window-maximize" type="button" title="最大化" aria-label="最大化">
+                <svg class="maximize-icon" viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="2" width="8" height="8" rx="1"/></svg>
+            </button>
+            <button class="window-control window-control-close" id="window-close" type="button" title="关闭" aria-label="关闭">
+                <svg viewBox="0 0 12 12" aria-hidden="true"><path d="m3 3 6 6M9 3 3 9"/></svg>
+            </button>
+        </div>
+    </div>
     <div class="app-container">
         <!-- 侧边栏 -->
         <nav class="sidebar">
             <div class="sidebar-header">
-                <h1>📚 四六级词汇</h1>
+                <h1><i class="fa-solid fa-book-open-reader"></i> 四六级词汇</h1>
                 <div class="streak-badge">
-                    <span class="streak-icon">🔥</span>
+                    <span class="streak-icon"><i class="fa-solid fa-fire"></i></span>
                     <span class="streak-count" id="streak-count">0</span>
                     <span class="streak-text">天</span>
                 </div>
@@ -26,30 +45,34 @@
 
             <ul class="nav-menu">
                 <li class="nav-item active" data-page="home">
-                    <span class="nav-icon">🏠</span>
+                    <span class="nav-icon"><i class="fa-solid fa-house"></i></span>
                     <span>打卡首页</span>
                 </li>
                 <li class="nav-item" data-page="learn">
-                    <span class="nav-icon">📖</span>
+                    <span class="nav-icon"><i class="fa-solid fa-book"></i></span>
                     <span>开始学习</span>
                 </li>
                 <li class="nav-item" data-page="stats">
-                    <span class="nav-icon">📊</span>
+                    <span class="nav-icon"><i class="fa-solid fa-chart-column"></i></span>
                     <span>学习统计</span>
                 </li>
                 <li class="nav-item" data-page="mistakes">
-                    <span class="nav-icon">📝</span>
+                    <span class="nav-icon"><i class="fa-solid fa-pen-to-square"></i></span>
                     <span>错题本</span>
                 </li>
+                <li class="nav-item" data-page="translate">
+                    <span class="nav-icon"><i class="fa-solid fa-language"></i></span>
+                    <span>帮你翻译</span>
+                </li>
                 <li class="nav-item" data-page="settings">
-                    <span class="nav-icon">⚙️</span>
+                    <span class="nav-icon"><i class="fa-solid fa-gear"></i></span>
                     <span>设置</span>
                 </li>
             </ul>
 
             <div class="sidebar-footer">
                 <div class="app-info">
-                    <span>v1.0</span>
+                    <span>v1.4</span>
                     <span>Electron 版</span>
                 </div>
             </div>
@@ -62,12 +85,12 @@
                 <div class="home-container">
                     <div class="welcome-section">
                         <h2>欢迎回来！</h2>
-                        <p>今天也要坚持学习哦 💪</p>
+                        <p>今天也要坚持学习哦 <i class="fa-solid fa-hand-fist"></i></p>
                     </div>
 
                     <div class="checkin-status">
                         <div class="status-card" id="checkin-card">
-                            <div class="status-icon" id="checkin-icon">📅</div>
+                            <div class="status-icon" id="checkin-icon"><i class="fa-solid fa-calendar-day"></i></div>
                             <div class="status-content">
                                 <h3 id="checkin-title">今日未打卡</h3>
                                 <p id="checkin-text">点击下方按钮开始今日学习</p>
@@ -98,7 +121,7 @@
                         <div class="review-card">
                             <div class="review-info">
                                 <div class="review-title">
-                                    <span class="review-icon">🔁</span>
+                                    <span class="review-icon"><i class="fa-solid fa-arrows-rotate"></i></span>
                                     艾宾浩斯复习提醒
                                 </div>
                                 <div class="review-text" id="review-text">今天有 0 个错词到了复习时间</div>
@@ -111,17 +134,17 @@
                         <h3>快速开始</h3>
                         <div class="quick-actions">
                             <button class="quick-btn" data-mode="word_to_translation">
-                                <span class="btn-icon">🎯</span>
+                                <span class="btn-icon"><i class="fa-solid fa-bullseye"></i></span>
                                 <span class="btn-text">看词选义</span>
                                 <span class="btn-desc">从四个选项中选择正确的中文释义</span>
                             </button>
                             <button class="quick-btn" data-mode="translation_to_word">
-                                <span class="btn-icon">🔤</span>
+                                <span class="btn-icon"><i class="fa-solid fa-font"></i></span>
                                 <span class="btn-text">看义选词</span>
                                 <span class="btn-desc">根据中文释义选择正确的英文单词</span>
                             </button>
                             <button class="quick-btn" data-mode="flashcard">
-                                <span class="btn-icon">🃏</span>
+                                <span class="btn-icon"><i class="fa-solid fa-layer-group"></i></span>
                                 <span class="btn-text">词卡浏览</span>
                                 <span class="btn-desc">翻卡式学习，自主标记认识/不认识</span>
                             </button>
@@ -156,7 +179,7 @@
 
                     <div class="stats-grid">
                         <div class="stat-card">
-                            <div class="stat-icon">🔥</div>
+                            <div class="stat-icon"><i class="fa-solid fa-fire"></i></div>
                             <div class="stat-content">
                                 <div class="stat-value" id="stat-streak">0</div>
                                 <div class="stat-label">连续打卡天数</div>
@@ -164,7 +187,7 @@
                         </div>
 
                         <div class="stat-card">
-                            <div class="stat-icon">📅</div>
+                            <div class="stat-icon"><i class="fa-solid fa-calendar-check"></i></div>
                             <div class="stat-content">
                                 <div class="stat-value" id="stat-total">0</div>
                                 <div class="stat-label">累计打卡天数</div>
@@ -172,7 +195,7 @@
                         </div>
 
                         <div class="stat-card">
-                            <div class="stat-icon">📊</div>
+                            <div class="stat-icon"><i class="fa-solid fa-chart-column"></i></div>
                             <div class="stat-content">
                                 <div class="stat-value" id="stat-quizzes">0</div>
                                 <div class="stat-label">总测验次数</div>
@@ -180,7 +203,7 @@
                         </div>
 
                         <div class="stat-card">
-                            <div class="stat-icon">✅</div>
+                            <div class="stat-icon"><i class="fa-solid fa-check"></i></div>
                             <div class="stat-content">
                                 <div class="stat-value" id="stat-correct">0</div>
                                 <div class="stat-label">正确答题数</div>
@@ -188,7 +211,7 @@
                         </div>
 
                         <div class="stat-card">
-                            <div class="stat-icon">❌</div>
+                            <div class="stat-icon"><i class="fa-solid fa-xmark"></i></div>
                             <div class="stat-content">
                                 <div class="stat-value" id="stat-wrong">0</div>
                                 <div class="stat-label">错误答题数</div>
@@ -196,7 +219,7 @@
                         </div>
 
                         <div class="stat-card">
-                            <div class="stat-icon">💯</div>
+                            <div class="stat-icon"><i class="fa-solid fa-award"></i></div>
                             <div class="stat-content">
                                 <div class="stat-value" id="stat-accuracy">0%</div>
                                 <div class="stat-label">正确率</div>
@@ -204,7 +227,7 @@
                         </div>
 
                         <div class="stat-card">
-                            <div class="stat-icon">✨</div>
+                            <div class="stat-icon"><i class="fa-solid fa-star"></i></div>
                             <div class="stat-content">
                                 <div class="stat-value" id="stat-mastered">0</div>
                                 <div class="stat-label">已掌握词汇</div>
@@ -212,11 +235,79 @@
                         </div>
 
                         <div class="stat-card">
-                            <div class="stat-icon">📝</div>
+                            <div class="stat-icon"><i class="fa-solid fa-pen-to-square"></i></div>
                             <div class="stat-content">
                                 <div class="stat-value" id="stat-mistakes">0</div>
                                 <div class="stat-label">错题数量</div>
                             </div>
+                        </div>
+
+                        <div class="stat-card">
+                            <div class="stat-icon"><i class="fa-solid fa-clock"></i></div>
+                            <div class="stat-content">
+                                <div class="stat-value stat-value-text" id="stat-study-today">0 分钟</div>
+                                <div class="stat-label">今日学习时长</div>
+                            </div>
+                        </div>
+
+                        <div class="stat-card">
+                            <div class="stat-icon"><i class="fa-solid fa-hourglass-half"></i></div>
+                            <div class="stat-content">
+                                <div class="stat-value stat-value-text" id="stat-study-total">0 分钟</div>
+                                <div class="stat-label">累计学习时长</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 打卡日历 -->
+                    <div class="calendar-card">
+                        <div class="calendar-head">
+                            <div class="calendar-title">
+                                <i class="fa-solid fa-calendar-days"></i>
+                                <span>打卡日历</span>
+                            </div>
+                            <div class="calendar-nav">
+                                <button class="calendar-nav-btn" id="calendar-prev" title="上个月">
+                                    <i class="fa-solid fa-chevron-left"></i>
+                                </button>
+                                <span class="calendar-month" id="calendar-month">—</span>
+                                <button class="calendar-nav-btn" id="calendar-next" title="下个月">
+                                    <i class="fa-solid fa-chevron-right"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="calendar-summary">
+                            <span class="calendar-summary-item">
+                                <i class="fa-solid fa-fire"></i>
+                                连续打卡 <strong id="calendar-streak">0</strong> 天
+                            </span>
+                            <span class="calendar-summary-item">
+                                <i class="fa-solid fa-calendar-check"></i>
+                                累计打卡 <strong id="calendar-total">0</strong> 天
+                            </span>
+                            <span class="calendar-summary-item">
+                                <i class="fa-solid fa-circle-check"></i>
+                                本月打卡 <strong id="calendar-month-count">0</strong> 天
+                            </span>
+                        </div>
+
+                        <div class="calendar-weekdays">
+                            <span>日</span>
+                            <span>一</span>
+                            <span>二</span>
+                            <span>三</span>
+                            <span>四</span>
+                            <span>五</span>
+                            <span>六</span>
+                        </div>
+
+                        <div class="calendar-grid" id="calendar-grid"></div>
+
+                        <div class="calendar-foot">
+                            <span class="calendar-legend"><i class="calendar-legend-mark is-checked"></i>已打卡</span>
+                            <span class="calendar-legend"><i class="calendar-legend-mark is-today"></i>今天</span>
+                            <span class="calendar-note" id="calendar-note"></span>
                         </div>
                     </div>
                 </div>
@@ -263,8 +354,35 @@
                     </div>
 
                     <div class="mistakes-empty" id="mistakes-empty">
-                        <div class="empty-icon">📝</div>
+                        <div class="empty-icon"><i class="fa-solid fa-pen-to-square"></i></div>
                         <p>错题本为空，继续加油！</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 独立翻译页面 -->
+            <div id="page-translate" class="page">
+                <div class="translate-container">
+                    <h2>帮你翻译</h2>
+                    <p class="translate-intro">输入英文或中文，稍作停顿后自动翻译。英文译为中文，中文译为英文。</p>
+                    <div class="translate-config" id="translate-config" hidden>
+                        <label for="translate-app-id">百度翻译 APP ID</label>
+                        <input id="translate-app-id" type="text" autocomplete="off" spellcheck="false" placeholder="百度翻译开放平台 APP ID">
+                        <label for="translate-api-key">密钥</label>
+                        <input id="translate-api-key" type="password" autocomplete="off" spellcheck="false" placeholder="输入与 APP ID 配套的密钥">
+                        <p>使用百度通用翻译 API；密钥只保留在当前窗口，不写入学习数据或安装包。</p>
+                    </div>
+                    <div class="translate-panels">
+                        <div class="translate-panel">
+                            <label for="translate-input">输入词语或句子</label>
+                            <textarea id="translate-input" maxlength="1800" placeholder="在这里输入中文或 English…"></textarea>
+                            <div class="translate-panel-footer"><span id="translate-direction">自动识别中英文</span><button type="button" id="translate-clear" class="btn btn-secondary btn-sm">清空</button></div>
+                        </div>
+                        <div class="translate-panel">
+                            <label for="translate-output">翻译结果</label>
+                            <div id="translate-output" class="translate-output" role="status" aria-live="polite">翻译结果会显示在这里</div>
+                            <div class="translate-panel-footer"><span id="translate-status">等待输入</span><div class="translate-actions"><button type="button" id="translate-speak" class="btn btn-secondary btn-sm" hidden>朗读英文</button><button type="button" id="translate-copy" class="btn btn-secondary btn-sm" disabled>复制结果</button></div></div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -285,8 +403,23 @@
                             <div class="theme-swatches" id="theme-accents"></div>
                         </div>
                         <div class="setting-item setting-item-block">
-                            <div class="setting-label"><span>背景颜色</span></div>
+                            <div class="setting-label"><span>自定义颜色</span></div>
+                            <div class="custom-color-picker">
+                                <input type="color" id="custom-accent-picker" value="#0f6cbd">
+                                <span class="custom-color-hint">点击选择任意颜色作为主题色</span>
+                            </div>
+                        </div>
+                        <div class="setting-item setting-item-block">
+                            <div class="setting-label"><span>背景颜色与渐变</span></div>
                             <div class="theme-swatches" id="theme-backgrounds"></div>
+                        </div>
+                        <div class="setting-item setting-item-block">
+                            <div class="setting-label"><span>自定义渐变背景</span></div>
+                            <div class="custom-color-picker custom-background-picker">
+                                <label>起始色 <input type="color" id="custom-background-start" value="#e8f2ff"></label>
+                                <label>结束色 <input type="color" id="custom-background-end" value="#f5eaff"></label>
+                                <span class="custom-color-hint">选择两种颜色，自动应用渐变</span>
+                            </div>
                         </div>
                         <div class="setting-item setting-item-block">
                             <div class="setting-label"><span>界面圆角</span></div>
@@ -383,6 +516,17 @@
                             </label>
                         </div>
                         <div class="setting-item">
+                            <label class="setting-label" for="setting-window-material">顶部栏效果：</label>
+                            <select id="setting-window-material">
+                                <option value="default">默认样式</option>
+                                <option value="acrylic">亚克力</option>
+                                <option value="transparent">透明背景</option>
+                            </select>
+                        </div>
+                        <div class="setting-note hidden" id="window-material-note">
+                            当前 Windows 版本不支持亚克力；默认样式和透明背景仍可使用
+                        </div>
+                        <div class="setting-item">
                             <div class="setting-label">
                                 <span>系统托盘</span>
                                 <button class="btn btn-secondary btn-sm" id="hide-to-tray">隐藏到托盘</button>
@@ -401,6 +545,7 @@
 
     <script src="js/app.js"></script>
     <script src="js/api.js"></script>
+    <script src="js/translate.js"></script>
     <script src="js/theme.js"></script>
     <script src="js/quiz.js"></script>
     <script src="js/ui.js"></script>

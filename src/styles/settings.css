@@ -143,7 +143,6 @@
 
 .theme-swatch:hover {
     border-color: var(--primary);
-    transform: translateY(-1px);
 }
 
 .theme-swatch.active {
@@ -226,7 +225,6 @@
 
 .theme-preset:hover {
     border-color: var(--primary);
-    transform: translateY(-1px);
 }
 
 .theme-preset.active {
@@ -264,6 +262,58 @@
 
 .theme-preset-label {
     text-align: center;
+}
+
+/* 设置项下方的补充说明（例如系统不支持某个功能时） */
+.setting-note {
+    margin: -6px 0 4px;
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--text-tertiary);
+}
+
+/* 自定义颜色选择器 */
+.custom-color-picker {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.custom-color-picker input[type="color"] {
+    width: 42px;
+    height: 42px;
+    border: 2px solid var(--border);
+    border-radius: var(--radius);
+    cursor: pointer;
+    padding: 2px;
+    background: var(--bg-card);
+    transition: var(--transition);
+}
+
+.custom-color-picker input[type="color"]:hover {
+    border-color: var(--primary);
+    transform: scale(1.05);
+}
+
+.custom-color-hint {
+    font-size: 13px;
+    color: var(--text-tertiary);
+}
+
+.custom-background-picker {
+    flex-wrap: wrap;
+}
+
+.custom-background-picker label {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+
+.custom-background-picker.active input[type="color"] {
+    border-color: var(--primary);
 }
 
 /* 响应式 */

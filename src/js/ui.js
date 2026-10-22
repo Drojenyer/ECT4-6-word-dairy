@@ -1,3 +1,10 @@
+// 学习时长的统计口径：停在学习页 + 窗口可见 + 最近有过操作才算。
+// 每 STUDY_TICK_SECONDS 秒累加一拍，攒够 STUDY_FLUSH_SECONDS 秒写回一次数据。
+const STUDY_TICK_SECONDS = 5;
+const STUDY_FLUSH_SECONDS = 30;
+// 超过这么久没有任何点击 / 按键，就认为人不在，这段时间不计入
+const STUDY_IDLE_SECONDS = 60;
+
 class UI {
   constructor() {
     this.currentPage = 'home';
@@ -11,12 +18,57 @@ class UI {
     this.quickStartBound = false;
     this.settingsActionsBound = false;
     this.mistakesActionsBound = false;
+    // 打卡日历：当前显示的月份 + 是否已绑定翻月按钮
+    this.calendarCursor = null;
+    this.calendarBound = false;
+    this.checkinDates = new Set();
+    // 学习时长：还没上报的秒数、最近一次操作时间、最近一次上报的 Promise
+    this.pendingStudySeconds = 0;
+    this.lastActivityAt = 0;
+    this.studyTimerId = null;
+    this.studyFlush = null;
     this.initNavigation();
+    this.initWindowControls();
+    this.startStudyTimer();
+  }
+
+  initWindowControls() {
+    const titlebar = document.getElementById('desktop-titlebar');
+    if (!titlebar || !api.isDesktopWindow || !api.isDesktopWindow()) return;
+    titlebar.hidden = false;
+    document.body.classList.add('has-desktop-titlebar');
+
+    document.getElementById('window-minimize').addEventListener('click', () => api.minimizeWindow());
+    document.getElementById('window-maximize').addEventListener('click', async () => {
+      const state = await api.toggleMaximizeWindow();
+      this.syncWindowMaximizeButton(state.isMaximized);
+    });
+    document.getElementById('window-close').addEventListener('click', () => api.closeWindow());
+    document.getElementById('desktop-titlebar-drag').addEventListener('dblclick', async event => {
+      if (event.target.closest('button')) return;
+      const state = await api.toggleMaximizeWindow();
+      this.syncWindowMaximizeButton(state.isMaximized);
+    });
+
+    api.getWindowState().then(state => this.syncWindowMaximizeButton(state.isMaximized));
+    if (api.onWindowMaximizeChange) {
+      api.onWindowMaximizeChange(isMaximized => this.syncWindowMaximizeButton(isMaximized));
+    }
+  }
+
+  syncWindowMaximizeButton(isMaximized) {
+    const button = document.getElementById('window-maximize');
+    if (!button) return;
+    button.title = isMaximized ? '还原' : '最大化';
+    button.setAttribute('aria-label', button.title);
+    button.querySelector('svg').innerHTML = isMaximized
+      ? '<path d="M4 2h6v6M8 4H2v6h6V4Z"/>'
+      : '<rect x="2" y="2" width="8" height="8" rx="1"/>';
   }
 
   // 启动时恢复到上次所在的页面
   async restoreLastPage() {
-    const validTabs = ['home', 'learn', 'stats', 'mistakes', 'settings'];
+    const validTabs = ['home', 'learn', 'stats', 'mistakes', 'translate', 'settings'];
 
     try {
       const settings = await api.getSettings();
@@ -38,7 +90,8 @@ class UI {
           return;
         }
 
-        this.navigateTo('home');
+        // 没有未完成进度就直接开一局（默认看词选义），不要停在空白页
+        await this.startQuizWithMode(settings.quiz_mode || 'word_to_translation', settings);
         return;
       }
 
@@ -60,7 +113,12 @@ class UI {
     });
   }
 
-  navigateTo(page) {
+  /**
+   * 只切页面、不加载内容。
+   * 学习页的内容由各入口自己准备（开局 / 继续进度 / 错词测试），
+   * 那些入口需要先切页再自己渲染，所以走这里而不是带自动开局的 navigateTo。
+   */
+  switchPage(page) {
     const pages = document.querySelectorAll('.page');
     const navItems = document.querySelectorAll('.nav-item');
 
@@ -80,18 +138,52 @@ class UI {
 
     this.currentPage = page;
 
+    // 离开学习页时取消抑制提醒，并把还没上报的学习时长先写回去
+    if (page !== 'learn') {
+      try { api.setStudying(false); } catch (e) {}
+      this.flushStudyTime();
+    }
+
     if (this.readyToTrackTab) {
       api.updateSettings({ last_tab: page }).catch(() => {});
     }
+  }
+
+  navigateTo(page) {
+    this.switchPage(page);
 
     if (page === 'home') {
       this.loadHomePage();
+    } else if (page === 'learn') {
+      this.openLearnPage();
     } else if (page === 'stats') {
       this.loadStatsPage();
     } else if (page === 'mistakes') {
       this.loadMistakesPage();
+    } else if (page === 'translate') {
+      window.translator.activate();
     } else if (page === 'settings') {
       this.loadSettingsPage();
+    }
+  }
+
+  /**
+   * 进入学习页：已经有内容（正在答题，或上次的成绩单）就原样保留，
+   * 否则先试「继续上次进度」，没有未完成的进度就直接开一局，
+   * 默认模式是看词选义，避免点进来是一片空白。
+   */
+  async openLearnPage() {
+    const area = document.getElementById('learn-area');
+
+    // 用子元素判断有没有内容：初始状态里只有一个注释节点
+    if (!area || area.children.length > 0) {
+      return;
+    }
+
+    try {
+      await this.startOrResume();
+    } catch (error) {
+      console.error('打开学习页失败:', error);
     }
   }
 
@@ -179,7 +271,8 @@ class UI {
       return;
     }
 
-    this.navigateTo('learn');
+    this.switchPage('learn');
+    try { api.setStudying(true); } catch (e) {}
 
     document.getElementById('learn-area').innerHTML = `
       <div class="loading-state">
@@ -223,14 +316,14 @@ class UI {
 
     if (isCheckedIn) {
       checkinCard.classList.add('checked-in');
-      checkinIcon.textContent = '✅';
+      checkinIcon.innerHTML = '<i class="fa-solid fa-check"></i>';
       checkinTitle.textContent = '今日已打卡';
       checkinText.textContent = `连续打卡 ${stats.streak_days} 天，继续加油！`;
     } else {
       checkinCard.classList.remove('checked-in');
-      checkinIcon.textContent = '📅';
+      checkinIcon.innerHTML = '<i class="fa-solid fa-calendar-day"></i>';
       checkinTitle.textContent = '今日未打卡';
-      checkinText.textContent = '点击下方按钮开始今日学习';
+      checkinText.textContent = '完成今日学习任务后自动打卡';
     }
   }
 
@@ -257,7 +350,9 @@ class UI {
   }
 
   async startQuizWithMode(mode, settings) {
-    this.navigateTo('learn');
+    this.switchPage('learn');
+
+    try { api.setStudying(true); } catch (e) {}
 
     const learnArea = document.getElementById('learn-area');
     if (learnArea) {
@@ -270,7 +365,7 @@ class UI {
     }
 
     try {
-      await this.performCheckIn();
+      // 打卡不在这里做，等整套题目做完（quiz.renderResult）再计入
       await window.quiz.startQuiz(mode, settings);
     } catch (error) {
       console.error('开始测验失败:', error);
@@ -289,14 +384,20 @@ class UI {
       const result = await api.checkIn();
       if (result.success) {
         this.updateCheckInStatus(result.stats);
+        return result.stats;
       }
     } catch (error) {
       console.error('打卡失败:', error);
     }
+
+    return null;
   }
 
   async loadStatsPage() {
     try {
+      // 先把还没落库的学习时长写回去，避免统计页读到旧数字
+      await this.flushStudyTime();
+
       const stats = await api.getStats();
       this.updateStatsDisplay(stats);
     } catch (error) {
@@ -317,6 +418,214 @@ class UI {
 
     document.getElementById('stat-mastered').textContent = (stats.mastered_words || []).length;
     document.getElementById('stat-mistakes').textContent = (stats.wrong_words || []).length;
+
+    this.updateStudyTimeDisplay(stats);
+    this.renderCheckinCalendar(stats);
+  }
+
+  /* ---------- 打卡日历 ---------- */
+
+  // 每次进统计页都从当月看起，翻月后离开再回来不会停在旧月份
+  renderCheckinCalendar(stats) {
+    const grid = document.getElementById('calendar-grid');
+    if (!grid) {
+      return;
+    }
+
+    this.checkinDates = new Set(stats.checkin_dates || []);
+    this.streakDays = stats.streak_days || 0;
+    this.totalDays = stats.total_days || 0;
+
+    const today = this.calendarToday();
+    this.calendarCursor = { year: today.getUTCFullYear(), month: today.getUTCMonth() };
+
+    this.bindCalendarEvents();
+    this.paintCalendar();
+  }
+
+  /**
+   * 日期一律按 "YYYY-MM-DD" 处理，与打卡记录、todayKey() 保持同一口径，
+   * 都用 UTC 取年月日，避免时区差异让日历和记录差一天。
+   */
+  calendarToday() {
+    return new Date(`${this.todayKey()}T00:00:00Z`);
+  }
+
+  bindCalendarEvents() {
+    if (this.calendarBound) {
+      return;
+    }
+
+    const prev = document.getElementById('calendar-prev');
+    const next = document.getElementById('calendar-next');
+
+    if (!prev || !next) {
+      return;
+    }
+
+    prev.addEventListener('click', () => this.shiftCalendar(-1));
+    next.addEventListener('click', () => this.shiftCalendar(1));
+    this.calendarBound = true;
+  }
+
+  shiftCalendar(delta) {
+    const shifted = new Date(Date.UTC(this.calendarCursor.year, this.calendarCursor.month + delta, 1));
+    this.calendarCursor = {
+      year: shifted.getUTCFullYear(),
+      month: shifted.getUTCMonth()
+    };
+    this.paintCalendar();
+  }
+
+  // 画当月网格：周日开头，打过卡的日期加标记，今天套个圈
+  paintCalendar() {
+    const grid = document.getElementById('calendar-grid');
+    if (!grid) {
+      return;
+    }
+
+    const { year, month } = this.calendarCursor;
+    const monthLabel = document.getElementById('calendar-month');
+    const todayKey = this.todayKey();
+    const firstWeekday = new Date(Date.UTC(year, month, 1)).getUTCDay();
+    const daysInMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+
+    if (monthLabel) {
+      monthLabel.textContent = `${year} 年 ${month + 1} 月`;
+    }
+
+    const cells = [];
+
+    // 当月 1 号之前空出的格子
+    for (let i = 0; i < firstWeekday; i++) {
+      cells.push('<div class="calendar-cell is-blank"></div>');
+    }
+
+    let monthCount = 0;
+
+    for (let day = 1; day <= daysInMonth; day++) {
+      const key = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      const checked = this.checkinDates.has(key);
+      const isToday = key === todayKey;
+
+      if (checked) {
+        monthCount++;
+      }
+
+      cells.push(
+        `<div class="calendar-cell${checked ? ' is-checked' : ''}${isToday ? ' is-today' : ''}"`
+        + ` title="${key}${checked ? ' 已打卡' : ''}">`
+        + `<span class="calendar-day">${day}</span></div>`
+      );
+    }
+
+    grid.innerHTML = cells.join('');
+
+    this.setText('calendar-streak', this.streakDays);
+    this.setText('calendar-total', this.totalDays);
+    this.setText('calendar-month-count', monthCount);
+
+    // 逐日记录是本版才有的，早期打卡补不全，说明一下免得看着像漏记
+    this.setText(
+      'calendar-note',
+      this.totalDays > this.checkinDates.size ? '更早的打卡没有逐日记录，从本版开始逐日保存' : ''
+    );
+  }
+
+  setText(id, value) {
+    const element = document.getElementById(id);
+    if (element) {
+      element.textContent = value;
+    }
+  }
+
+  /* ---------- 学习时长统计 ---------- */
+
+  /**
+   * 计时口径：停在学习页 + 窗口在前台 + 最近 STUDY_IDLE_SECONDS 秒内有过操作。
+   * 挂着不动、切到别的页面、最小化到托盘都不会计入，
+   * 所以是「有在学」的时间，而不是打开软件的时间。
+   */
+  startStudyTimer() {
+    if (this.studyTimerId) {
+      return;
+    }
+
+    ['pointerdown', 'keydown', 'wheel', 'touchstart'].forEach(type => {
+      document.addEventListener(type, () => { this.lastActivityAt = Date.now(); }, { passive: true });
+    });
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') {
+        this.flushStudyTime();
+      }
+    });
+
+    this.studyTimerId = setInterval(() => this.tickStudyTime(), STUDY_TICK_SECONDS * 1000);
+  }
+
+  isStudyActive() {
+    return this.currentPage === 'learn'
+      && document.visibilityState === 'visible'
+      && (Date.now() - this.lastActivityAt) <= STUDY_IDLE_SECONDS * 1000;
+  }
+
+  tickStudyTime() {
+    if (!this.isStudyActive()) {
+      return;
+    }
+
+    this.pendingStudySeconds += STUDY_TICK_SECONDS;
+
+    if (this.pendingStudySeconds >= STUDY_FLUSH_SECONDS) {
+      this.flushStudyTime();
+    }
+  }
+
+  /**
+   * 把攒下的秒数写回数据，返回最近一次写入的 Promise。
+   * 统计页刷新前会先 await 它，避免读到还没落库的时长。
+   */
+  flushStudyTime() {
+    const seconds = Math.round(this.pendingStudySeconds);
+
+    if (seconds < 1) {
+      return this.studyFlush || Promise.resolve();
+    }
+
+    this.pendingStudySeconds = 0;
+    this.studyFlush = api.addStudyTime(seconds).catch(error => {
+      console.error('记录学习时长失败:', error);
+      // 写失败就把秒数留着，下次一起上报
+      this.pendingStudySeconds += seconds;
+    });
+
+    return this.studyFlush;
+  }
+
+  // 今日学习时长 + 累计学习时长（累计 = 各天之和）
+  updateStudyTimeDisplay(stats) {
+    const byDate = stats && stats.study_time && typeof stats.study_time === 'object'
+      ? stats.study_time
+      : {};
+    const total = Object.keys(byDate).reduce((sum, key) => sum + (Number(byDate[key]) || 0), 0);
+    const pending = Math.round(this.pendingStudySeconds);
+
+    this.setText('stat-study-today', this.formatDuration((Number(byDate[this.todayKey()]) || 0) + pending));
+    this.setText('stat-study-total', this.formatDuration(total + pending));
+  }
+
+  // 秒 → 「N 分钟 / N 小时 M 分」，不足一分钟按 0 分钟
+  formatDuration(seconds) {
+    const minutes = Math.floor(Math.max(0, Number(seconds) || 0) / 60);
+
+    if (minutes < 60) {
+      return `${minutes} 分钟`;
+    }
+
+    const hours = Math.floor(minutes / 60);
+    const rest = minutes % 60;
+    return rest ? `${hours} 小时 ${rest} 分` : `${hours} 小时`;
   }
 
   async loadMistakesPage() {
@@ -436,6 +745,12 @@ class UI {
     return `<span class="mistake-badge badge-wait">${days} 天后复习</span>`;
   }
 
+  intensiveBadge(item) {
+    return item.intensive
+      ? `<span class="mistake-badge badge-intensive" title="答对 3 次后自动取消重点标记">重点复习 ${item.intensive_correct || 0}/3</span>`
+      : '';
+  }
+
   sortWrongWords(wrongWords) {
     const items = [...wrongWords];
     const byWord = (a, b) => String(a.word).localeCompare(String(b.word));
@@ -504,7 +819,7 @@ class UI {
     if (!score) {
       return '';
     }
-    return `<span class="mistake-badge badge-freq" title="考研/四级/六级真题累计出现 ${score} 次">🔥 高频</span>`;
+    return `<span class="mistake-badge badge-freq" title="考研/四级/六级真题累计出现 ${score} 次"><i class="fa-solid fa-fire"></i> 高频</span>`;
   }
 
   // 条状详细：完整展示释义、例句与复习信息
@@ -527,6 +842,7 @@ class UI {
           <span class="mistake-word">${word.word}</span>
           ${this.phoneticHtml(word.word)}
           ${this.highFreqBadge(word.word)}
+          ${this.intensiveBadge(word)}
           ${this.reviewBadge(word)}
         </div>
         <span class="mistake-level">${word.level}</span>
@@ -555,6 +871,7 @@ class UI {
       </div>
       <div class="mistake-grid-badges">
         ${this.reviewBadge(word)}
+        ${this.intensiveBadge(word)}
         ${this.highFreqBadge(word.word)}
         <span class="mistake-badge badge-count">错 ${word.wrong_count || 1}</span>
       </div>
@@ -649,7 +966,8 @@ class UI {
       this.settings = await api.getSettings();
     }
 
-    this.navigateTo('learn');
+    this.switchPage('learn');
+    try { api.setStudying(true); } catch (e) {}
 
     document.getElementById('learn-area').innerHTML = `
       <div class="loading-state">
@@ -684,6 +1002,7 @@ class UI {
   async loadSettingsPage() {
     try {
       const settings = await api.getSettings();
+      this.settings = settings;
       this.loadSettingsForm(settings);
 
       window.theme.applyFromSettings(settings);
@@ -693,6 +1012,7 @@ class UI {
         const system = await api.getSystemSettings();
         document.getElementById('setting-auto-start').checked = !!system.autoStart;
         document.getElementById('setting-close-to-tray').checked = !!system.closeToTray;
+        this.syncWindowMaterialControls(system);
       } catch (error) {
         console.error('读取系统设置失败:', error);
       }
@@ -700,6 +1020,25 @@ class UI {
       this.setupSettingsActions();
     } catch (error) {
       console.error('加载设置失败:', error);
+    }
+  }
+
+  // 亚克力材质只有 Windows 11 22H2 以上能用；其他顶部栏效果仍可选。
+  syncWindowMaterialControls(system) {
+    const select = document.getElementById('setting-window-material');
+    const note = document.getElementById('window-material-note');
+
+    if (!select) {
+      return;
+    }
+
+    select.value = ['default', 'acrylic', 'transparent'].includes(system.windowMaterial)
+      ? system.windowMaterial : 'default';
+    const acrylicOption = select.querySelector('option[value="acrylic"]');
+    if (acrylicOption) acrylicOption.disabled = system.materialSupported === false;
+
+    if (note) {
+      note.classList.toggle('hidden', system.materialSupported !== false);
     }
   }
 
@@ -757,13 +1096,24 @@ class UI {
         daily_count: Number(document.getElementById('setting-daily-count').value) || 100,
       };
 
+      const material = document.getElementById('setting-window-material').value;
+      settings.window_material = material;
+
       await api.updateSettings(settings);
       this.settings = Object.assign({}, this.settings, settings);
 
       await api.setAutoStart(document.getElementById('setting-auto-start').checked);
       await api.setCloseToTray(document.getElementById('setting-close-to-tray').checked);
 
-      this.showToast('设置已保存', 'success');
+      const materialResult = await api.setWindowMaterial(material);
+      // 亚克力模式下面板要变成半透明，改完重新套一次外观
+      window.theme.applyFromSettings(this.settings);
+
+      if (material === 'acrylic' && materialResult && materialResult.applied === false) {
+        this.showToast('当前系统不支持亚克力材质，已改用默认样式', 'info');
+      } else {
+        this.showToast('设置已保存', 'success');
+      }
     } catch (error) {
       console.error('保存设置失败:', error);
       this.showToast('保存失败，请重试', 'error');

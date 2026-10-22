@@ -149,7 +149,7 @@
 }
 
 .mistakes-list.layout-grid .mistake-item:hover {
-    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
 }
 
 .mistake-grid-head {
@@ -179,6 +179,12 @@
     color: var(--warning-text);
 }
 
+.mistake-badge.badge-intensive {
+    background: var(--danger-light);
+    color: var(--danger-text);
+    font-weight: 700;
+}
+
 .mistakes-list.layout-grid .mistake-translation {
     font-size: 14px;
     margin-bottom: 0;
@@ -201,12 +207,12 @@
     border: 1px solid var(--border-light);
     border-left: 3px solid var(--danger);
     box-shadow: var(--shadow);
-    transition: transform 0.24s var(--ease-out), box-shadow 0.24s var(--ease-out);
+    transition: box-shadow 0.24s var(--ease-out);
+    will-change: box-shadow;
 }
 
 .mistake-item:hover {
     box-shadow: var(--shadow-lg);
-    transform: translateX(3px);
 }
 
 .mistake-header {
